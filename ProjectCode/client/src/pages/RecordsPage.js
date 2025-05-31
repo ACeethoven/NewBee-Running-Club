@@ -13,15 +13,27 @@ export default function RecordsPage() {
     registration: [],
     volunteer: []
   });
+  const [recordsData, setRecordsData] = useState([]);
+  const [womenRecordsData, setWomenRecordsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState(0);
+  const [currentRecordsTab, setCurrentRecordsTab] = useState(0);
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const distances = [
+    { label: "1 Mile 一英里", value: "1mile" },
+    { label: "3K 三公里", value: "3k" },
+    { label: "5K 五公里", value: "5k" },
+    { label: "10K 十公里", value: "10k" },
+    { label: "Half Marathon 半程马拉松", value: "half_marathon" },
+    { label: "Marathon 全程马拉松", value: "marathon" }
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch all four CSV files
+        // Fetch all four CSV files for credits
         const files = [
           { name: 'total', path: '/data/total_credits.csv' },
           { name: 'activity', path: '/data/activity_credits.csv' },
@@ -38,7 +50,7 @@ export default function RecordsPage() {
                   header: true,
                   complete: (results) => {
                     const parsedData = results.data
-                      .filter(row => row.fullName) // Only keep rows with names
+                      .filter(row => row.fullName)
                       .map(row => ({
                         rank: parseInt(row.rank) || 0,
                         fullName: row.fullName,
@@ -46,18 +58,16 @@ export default function RecordsPage() {
                         checkinSum: parseFloat(row.checkin_sum || 0)
                       }))
                       .sort((a, b) => {
-                        // Sort by total points (registration + check-in)
                         const totalA = a.registrationSum + a.checkinSum;
                         const totalB = b.registrationSum + b.checkinSum;
                         if (totalB !== totalA) {
                           return totalB - totalA;
                         }
-                        // If totals are equal, sort by name
                         return a.fullName.localeCompare(b.fullName);
                       })
                       .map((row, index) => ({
                         ...row,
-                        rank: index + 1 // Assign new ranks based on sorted order
+                        rank: index + 1
                       }));
                     resolve({ name: file.name, data: parsedData });
                   },
@@ -69,6 +79,34 @@ export default function RecordsPage() {
               });
             })
         );
+
+        // Fetch men's records data
+        const recordsResponse = await fetch('/data/club_records.csv');
+        const recordsText = await recordsResponse.text();
+        Papa.parse(recordsText, {
+          header: true,
+          complete: (results) => {
+            setRecordsData(results.data.filter(row => row.fullName));
+          },
+          error: (error) => {
+            console.error('Error parsing records CSV:', error);
+            setRecordsData([]);
+          }
+        });
+
+        // Fetch women's records data
+        const womenRecordsResponse = await fetch('/data/club_records_women.csv');
+        const womenRecordsText = await womenRecordsResponse.text();
+        Papa.parse(womenRecordsText, {
+          header: true,
+          complete: (results) => {
+            setWomenRecordsData(results.data.filter(row => row.fullName));
+          },
+          error: (error) => {
+            console.error('Error parsing women records CSV:', error);
+            setWomenRecordsData([]);
+          }
+        });
 
         const results = await Promise.all(fetchPromises);
         const newData = {};
@@ -90,11 +128,19 @@ export default function RecordsPage() {
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
     setShowAll(false);
-    setSearchQuery(''); // Clear search when changing tabs
+    setSearchQuery('');
+  };
+
+  const handleRecordsTabChange = (event, newValue) => {
+    setCurrentRecordsTab(newValue);
   };
 
   const getTableHeaders = () => {
     return ['Rank', 'Name', 'Registration Points', 'Check-in Points', 'Total Points'];
+  };
+
+  const getRecordsTableHeaders = () => {
+    return ['Rank', 'Name', 'Time'];
   };
 
   const handleSearchChange = (event) => {
@@ -112,6 +158,20 @@ export default function RecordsPage() {
     return showAll ? filtered : filtered.slice(0, 10);
   };
 
+  const getFilteredRecordsData = () => {
+    const currentDistance = distances[currentRecordsTab].value;
+    return recordsData
+      .filter(row => row.distance === currentDistance)
+      .sort((a, b) => a.rank - b.rank);
+  };
+
+  const getFilteredWomenRecordsData = () => {
+    const currentDistance = distances[currentRecordsTab].value;
+    return womenRecordsData
+      .filter(row => row.distance === currentDistance)
+      .sort((a, b) => a.rank - b.rank);
+  };
+
   const renderTableContent = () => {
     const displayData = getFilteredData();
 
@@ -124,6 +184,18 @@ export default function RecordsPage() {
         <TableCell sx={{ fontWeight: 'bold' }}>
           {(row.registrationSum + row.checkinSum).toFixed(1)}
         </TableCell>
+      </TableRow>
+    ));
+  };
+
+  const renderRecordsTableContent = () => {
+    const displayData = getFilteredRecordsData();
+
+    return displayData.map((row) => (
+      <TableRow key={row.rank} hover>
+        <TableCell>{row.rank}</TableCell>
+        <TableCell>{row.fullName}</TableCell>
+        <TableCell>{row.time}</TableCell>
       </TableRow>
     ));
   };
@@ -146,11 +218,126 @@ export default function RecordsPage() {
             mb: 3
           }}
         >
-          Club Credits & Records
+          Club Records
+          俱乐部记录
+        </Typography>
+
+        {/* Records Tabs */}
+        <Tabs
+          value={currentRecordsTab}
+          onChange={handleRecordsTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            mb: 3,
+            '& .MuiTab-root': {
+              color: 'text.secondary',
+              '&.Mui-selected': {
+                color: '#FFA500',
+              },
+              minWidth: 0,
+              flex: 1,
+              whiteSpace: 'nowrap',
+              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+            },
+            '& .MuiTabs-indicator': {
+              backgroundColor: '#FFA500',
+            },
+          }}
+        >
+          {distances.map((distance, index) => (
+            <Tab key={index} label={distance.label} />
+          ))}
+        </Tabs>
+
+        {/* Records Table */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+          {/* Men's Records Table */}
+          <TableContainer component={Paper} sx={{ flex: 1 }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                color: '#FFA500',
+                p: 2,
+                borderBottom: '1px solid #FFA500'
+              }}
+            >
+              Men's Records
+              男子记录
+            </Typography>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  {getRecordsTableHeaders().map((header, index) => (
+                    <TableCell
+                      key={index}
+                      sx={{ fontWeight: 'bold', backgroundColor: '#FFA500', color: 'white' }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {renderRecordsTableContent()}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Women's Records Table */}
+          <TableContainer component={Paper} sx={{ flex: 1 }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                color: '#FFA500',
+                p: 2,
+                borderBottom: '1px solid #FFA500'
+              }}
+            >
+              Women's Records
+              女子记录
+            </Typography>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  {getRecordsTableHeaders().map((header, index) => (
+                    <TableCell
+                      key={index}
+                      sx={{ fontWeight: 'bold', backgroundColor: '#FFA500', color: 'white' }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {getFilteredWomenRecordsData().map((row) => (
+                  <TableRow key={row.rank} hover>
+                    <TableCell>{row.rank}</TableCell>
+                    <TableCell>{row.fullName}</TableCell>
+                    <TableCell>{row.time}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: 3
+          }}
+        >
+          Club Credits
           俱乐部积分榜
         </Typography>
 
-        {/* Tabs */}
+        {/* Credits Tabs */}
         <Tabs
           value={currentTab}
           onChange={handleTabChange}
@@ -237,11 +424,11 @@ export default function RecordsPage() {
               </Table>
             </TableContainer>
             
-            {!showAll && creditsData[Object.keys(creditsData)[currentTab]].length > 10 && (
+            {creditsData[Object.keys(creditsData)[currentTab]].length > 10 && (
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                 <Button
                   variant="outlined"
-                  onClick={() => setShowAll(true)}
+                  onClick={() => setShowAll(!showAll)}
                   sx={{
                     color: '#FFA500',
                     borderColor: '#FFA500',
@@ -251,7 +438,7 @@ export default function RecordsPage() {
                     },
                   }}
                 >
-                  Show All 显示全部
+                  {showAll ? 'Show Less 显示较少' : 'Show All 显示全部'}
                 </Button>
               </Box>
             )}
