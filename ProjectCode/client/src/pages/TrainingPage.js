@@ -63,12 +63,6 @@ export default function TrainingPage() {
     }
   };
 
-  const formatTime = (time) => {
-    // Convert time string (HH:MM:SS) to seconds
-    const [hours, minutes, seconds] = time.split(':').map(Number);
-    return hours * 3600 + minutes * 60 + seconds;
-  };
-
   const handleSubmit = (event) => {
     event.preventDefault();
     // TODO: Send data to AI system and generate training plan

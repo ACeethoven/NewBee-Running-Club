@@ -2,7 +2,6 @@ import { Box, Container, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import Logo from '../components/Logo';
 import MainPageButtons from '../components/MainPageButtons';
-import '../styles/HomePage.css';
 
 const masterImages = [
   {

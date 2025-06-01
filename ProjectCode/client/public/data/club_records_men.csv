@@ -1,0 +1,25 @@
+rank,fullName,time,race,distance
+1,John Smith,4:15,NYRR 1 Mile Run,1mile
+2,Michael Johnson,4:20,NYRR 1 Mile Run,1mile
+3,David Chen,4:25,NYRR 1 Mile Run,1mile
+1,James Wilson,15:30,NYRR 5K Run,5k
+2,Robert Brown,15:45,NYRR 5K Run,5k
+3,Thomas Lee,16:00,NYRR 5K Run,5k
+1,William Davis,22:30,NYRR 4 Mile Run,4mile
+2,Richard Miller,22:45,NYRR 4 Mile Run,4mile
+3,Joseph Taylor,23:00,NYRR 4 Mile Run,4mile
+1,Charles Anderson,28:15,NYRR 5 Mile Run,5mile
+2,Daniel Martinez,28:30,NYRR 5 Mile Run,5mile
+3,Paul Thompson,28:45,NYRR 5 Mile Run,5mile
+1,Mark White,32:00,NYRR 10K Run,10k
+2,Donald Clark,32:15,NYRR 10K Run,10k
+3,George Lewis,32:30,NYRR 10K Run,10k
+1,Kenneth Garcia,55:00,NYRR 10 Mile Run,10mile
+2,Edward Robinson,55:15,NYRR 10 Mile Run,10mile
+3,Steven Walker,55:30,NYRR 10 Mile Run,10mile
+1,Andrew Hall,1:10:00,NYRR Half Marathon,half_marathon
+2,Joshua Allen,1:10:15,NYRR Half Marathon,half_marathon
+3,Kevin Young,1:10:30,NYRR Half Marathon,half_marathon
+1,Brian King,2:30:00,NYRR Marathon,marathon
+2,Ronald Scott,2:30:15,NYRR Marathon,marathon
+3,Jason Wright,2:30:30,NYRR Marathon,marathon 

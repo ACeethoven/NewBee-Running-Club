@@ -22,12 +22,14 @@ export default function RecordsPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const distances = [
-    { label: "1 Mile 一英里", value: "1mile" },
-    { label: "3K 三公里", value: "3k" },
-    { label: "5K 五公里", value: "5k" },
-    { label: "10K 十公里", value: "10k" },
-    { label: "Half Marathon 半程马拉松", value: "half_marathon" },
-    { label: "Marathon 全程马拉松", value: "marathon" }
+    { label: "1 Mile\n一英里", value: "1mile" },
+    { label: "5K\n五公里", value: "5k" },
+    { label: "4 Mile\n四英里", value: "4mile" },
+    { label: "5 Mile\n五英里", value: "5mile" },
+    { label: "10K\n十公里", value: "10k" },
+    { label: "10 Mile\n十英里", value: "10mile" },
+    { label: "Half Marathon\n半程马拉松", value: "half_marathon" },
+    { label: "Marathon\n全程马拉松", value: "marathon" }
   ];
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export default function RecordsPage() {
         );
 
         // Fetch men's records data
-        const recordsResponse = await fetch('/data/club_records.csv');
+        const recordsResponse = await fetch('/data/club_records_men.csv');
         const recordsText = await recordsResponse.text();
         Papa.parse(recordsText, {
           header: true,
@@ -140,7 +142,7 @@ export default function RecordsPage() {
   };
 
   const getRecordsTableHeaders = () => {
-    return ['Rank', 'Name', 'Time'];
+    return ['Rank', 'Name', 'Time', 'Race'];
   };
 
   const handleSearchChange = (event) => {
@@ -162,14 +164,16 @@ export default function RecordsPage() {
     const currentDistance = distances[currentRecordsTab].value;
     return recordsData
       .filter(row => row.distance === currentDistance)
-      .sort((a, b) => a.rank - b.rank);
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, 10);
   };
 
   const getFilteredWomenRecordsData = () => {
     const currentDistance = distances[currentRecordsTab].value;
     return womenRecordsData
       .filter(row => row.distance === currentDistance)
-      .sort((a, b) => a.rank - b.rank);
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, 10);
   };
 
   const renderTableContent = () => {
@@ -196,6 +200,7 @@ export default function RecordsPage() {
         <TableCell>{row.rank}</TableCell>
         <TableCell>{row.fullName}</TableCell>
         <TableCell>{row.time}</TableCell>
+        <TableCell>{row.race}</TableCell>
       </TableRow>
     ));
   };
@@ -246,7 +251,14 @@ export default function RecordsPage() {
           }}
         >
           {distances.map((distance, index) => (
-            <Tab key={index} label={distance.label} />
+            <Tab 
+              key={index} 
+              label={
+                <Box sx={{ whiteSpace: 'pre-line', textAlign: 'center' }}>
+                  {distance.label}
+                </Box>
+              } 
+            />
           ))}
         </Tabs>
 
@@ -318,6 +330,7 @@ export default function RecordsPage() {
                     <TableCell>{row.rank}</TableCell>
                     <TableCell>{row.fullName}</TableCell>
                     <TableCell>{row.time}</TableCell>
+                    <TableCell>{row.race}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

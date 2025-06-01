@@ -22,19 +22,17 @@ const steps = ['Read Terms', 'Agree to Terms', 'Complete Questionnaire'];
 
 export default function JoinPage() {
   const [activeStep, setActiveStep] = useState(0);
-  const [agreed, setAgreed] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const termsContainerRef = useRef(null);
   const [formData, setFormData] = useState({
     name: '',
-    runningExperience: '',
-    location: '',
-    weeklyFrequency: '',
-    monthlyMileage: '',
-    raceExperience: '',
-    goals: '',
-    introduction: '',
+    email: '',
+    phone: '',
+    age: '',
+    gender: '',
+    experience: '',
+    goals: ''
   });
 
   useEffect(() => {
@@ -58,12 +56,7 @@ export default function JoinPage() {
     setActiveStep((prevStep) => prevStep + 1);
   };
 
-  const handleBack = () => {
-    setActiveStep((prevStep) => prevStep - 1);
-  };
-
   const handleAgree = () => {
-    setAgreed(true);
     setOpenDialog(false);
     handleNext();
   };
@@ -82,13 +75,12 @@ export default function JoinPage() {
     // Reset form and show success message
     setFormData({
       name: '',
-      runningExperience: '',
-      location: '',
-      weeklyFrequency: '',
-      monthlyMileage: '',
-      raceExperience: '',
-      goals: '',
-      introduction: '',
+      email: '',
+      phone: '',
+      age: '',
+      gender: '',
+      experience: '',
+      goals: ''
     });
     setActiveStep(0);
   };
@@ -327,51 +319,50 @@ export default function JoinPage() {
       />
       <TextField
         fullWidth
+        label="Email 邮箱"
+        name="email"
+        value={formData.email}
+        onChange={handleFormChange}
+        margin="normal"
+        required
+      />
+      <TextField
+        fullWidth
+        label="Phone 电话"
+        name="phone"
+        value={formData.phone}
+        onChange={handleFormChange}
+        margin="normal"
+        required
+      />
+      <TextField
+        fullWidth
+        label="Age 年龄"
+        name="age"
+        value={formData.age}
+        onChange={handleFormChange}
+        margin="normal"
+        required
+      />
+      <TextField
+        fullWidth
+        label="Gender 性别"
+        name="gender"
+        value={formData.gender}
+        onChange={handleFormChange}
+        margin="normal"
+        required
+      />
+      <TextField
+        fullWidth
         label="Running Experience 跑龄"
-        name="runningExperience"
-        value={formData.runningExperience}
+        name="experience"
+        value={formData.experience}
         onChange={handleFormChange}
         margin="normal"
         required
         multiline
         rows={2}
-      />
-      <TextField
-        fullWidth
-        label="Running Location 跑步地点"
-        name="location"
-        value={formData.location}
-        onChange={handleFormChange}
-        margin="normal"
-        required
-      />
-      <TextField
-        fullWidth
-        label="Weekly Running Frequency 每周跑步频次"
-        name="weeklyFrequency"
-        value={formData.weeklyFrequency}
-        onChange={handleFormChange}
-        margin="normal"
-        required
-      />
-      <TextField
-        fullWidth
-        label="Monthly Mileage 每月跑量"
-        name="monthlyMileage"
-        value={formData.monthlyMileage}
-        onChange={handleFormChange}
-        margin="normal"
-        required
-      />
-      <TextField
-        fullWidth
-        label="Race Experience 比赛经验"
-        name="raceExperience"
-        value={formData.raceExperience}
-        onChange={handleFormChange}
-        margin="normal"
-        multiline
-        rows={3}
       />
       <TextField
         fullWidth
@@ -383,17 +374,6 @@ export default function JoinPage() {
         required
         multiline
         rows={2}
-      />
-      <TextField
-        fullWidth
-        label="Self Introduction 自我介绍"
-        name="introduction"
-        value={formData.introduction}
-        onChange={handleFormChange}
-        margin="normal"
-        required
-        multiline
-        rows={4}
       />
       <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
         <Button

@@ -1,23 +1,23 @@
 import GitHubIcon from '@mui/icons-material/GitHub';
 import GoogleIcon from '@mui/icons-material/Google';
 import {
-  Alert,
-  Box,
-  Button,
-  Container,
-  Divider,
-  Grid,
-  Paper,
-  TextField,
-  Typography
+    Alert,
+    Box,
+    Button,
+    Container,
+    Divider,
+    Grid,
+    Paper,
+    TextField,
+    Typography
 } from '@mui/material';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 // import { useAuth } from '../context/AuthContext';
 import {
-  loginWithEmailAndPassword,
-  signInWithGithub,
-  signInWithGoogle
+    loginWithEmailAndPassword,
+    signInWithGithub,
+    signInWithGoogle
 } from '../firebase/auth';
 
 const LoginPage = () => {
@@ -33,7 +33,7 @@ const LoginPage = () => {
     setLoading(true);
     
     try {
-      const { user, error } = await loginWithEmailAndPassword(email, password);
+      const { error } = await loginWithEmailAndPassword(email, password);
       if (error) {
         setError(error);
       } else {
