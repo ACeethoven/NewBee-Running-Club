@@ -10,6 +10,24 @@ import PageButtons from '../components/PageButtons';
 export default function AboutPage() {
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [electionStandards, setElectionStandards] = useState('');
+  const [standardsLoading, setStandardsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchElectionStandards = async () => {
+      try {
+        const response = await fetch('/data/committee/election_standards.md');
+        const text = await response.text();
+        setElectionStandards(text);
+        setStandardsLoading(false);
+      } catch (error) {
+        console.error('Error fetching election standards:', error);
+        setStandardsLoading(false);
+      }
+    };
+
+    fetchElectionStandards();
+  }, []);
 
   useEffect(() => {
     const fetchMeetings = async () => {
@@ -540,6 +558,86 @@ export default function AboutPage() {
             </Link>
           </Box>
         </Box>
+      </Container>
+
+      {/* Committee Election Standards Section */}
+      <Container maxWidth="xl" sx={{ px: 2, mt: 0, mb: 4 }}>
+        <Accordion 
+          sx={{ 
+            backgroundColor: 'white',
+            borderRadius: '12px !important',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            '&:before': {
+              display: 'none',
+            },
+            '&.Mui-expanded': {
+              margin: '0',
+            }
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              '& .MuiAccordionSummary-content': {
+                margin: '12px 0',
+              },
+              '& .MuiAccordionSummary-expandIconWrapper': {
+                color: '#FFA500',
+              }
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                color: '#333',
+              }}
+            >
+              Committee Election Standards
+              委员会选举/换届标准
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            {standardsLoading ? (
+              <Typography variant="body1" color="text.secondary">
+                Loading...
+              </Typography>
+            ) : (
+              <div 
+                dangerouslySetInnerHTML={{ 
+                  __html: marked(electionStandards, { breaks: true }) 
+                }}
+                style={{
+                  '& h1': {
+                    fontSize: '1.8rem',
+                    fontWeight: 600,
+                    color: '#333',
+                    marginBottom: '1rem'
+                  },
+                  '& h2': {
+                    fontSize: '1.5rem',
+                    fontWeight: 600,
+                    color: '#444',
+                    marginBottom: '0.8rem'
+                  },
+                  '& h3': {
+                    fontSize: '1.2rem',
+                    fontWeight: 600,
+                    color: '#555',
+                    marginBottom: '0.6rem'
+                  },
+                  '& ul': {
+                    paddingLeft: '1.5rem',
+                    marginBottom: '1rem'
+                  },
+                  '& li': {
+                    marginBottom: '0.5rem'
+                  }
+                }}
+              />
+            )}
+          </AccordionDetails>
+        </Accordion>
       </Container>
 
       {/* History Text */}
