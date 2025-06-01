@@ -2,7 +2,6 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Accordion, AccordionDetails, AccordionSummary, Box, Container, Typography } from '@mui/material';
 import { marked } from 'marked';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { getMeetingContent, getMeetingFiles } from '../api/meetings';
 import Logo from '../components/Logo';
 import PageButtons from '../components/PageButtons';
@@ -213,7 +212,7 @@ export default function AboutPage() {
       <Container maxWidth="xl" sx={{ px: 2, mt: 4, mb: 6 }}>
         <Box sx={{ 
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(6, 1fr)' },
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(8, 1fr)' },
           gap: 3
         }}>
           {/* Member 1 */}
@@ -221,56 +220,48 @@ export default function AboutPage() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1.5
+            gap: 1
           }}>
-            <Link 
-              to="/committee/junxiao-yi" 
-              style={{ 
-                textDecoration: 'none',
-                color: 'inherit',
-                width: '100%'
+            <Box
+              component="img"
+              src="/committee 1.png"
+              alt="Committee Member 1"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
               }}
             >
-              <Box
-                component="img"
-                src="/committee 1.png"
-                alt="Committee Member 1"
-                sx={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  objectFit: 'cover',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Typography
-                variant="h6"
-                sx={{
-                  textAlign: 'center',
-                  color: '#333',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  mt: 1.5
-                }}
-              >
-                Junxiao Yi
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: '0.9rem'
-                }}
-              >
-                President, Founder
-                会长，创始人
-              </Typography>
-            </Link>
+              Junxiao Yi
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              President, Founder
+              会长，创始人
+            </Typography>
           </Box>
 
           {/* Member 2 */}
@@ -278,56 +269,48 @@ export default function AboutPage() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1.5
+            gap: 1
           }}>
-            <Link 
-              to="/committee/Lingqiao Tang" 
-              style={{ 
-                textDecoration: 'none',
-                color: 'inherit',
-                width: '100%'
+            <Box
+              component="img"
+              src="/committee 2.png"
+              alt="Committee Member 2"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
               }}
             >
-              <Box
-                component="img"
-                src="/committee 2.png"
-                alt="Committee Member 2"
-                sx={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  objectFit: 'cover',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Typography
-                variant="h6"
-                sx={{
-                  textAlign: 'center',
-                  color: '#333',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  mt: 1.5
-                }}
-              >
-                Lingqiao Tang
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: '0.9rem'
-                }}
-              >
-                Board Member
-                委员会成员
-              </Typography>
-            </Link>
+              Lingqiao Tang
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              Board Member
+              委员会成员
+            </Typography>
           </Box>
 
           {/* Member 3 */}
@@ -335,56 +318,48 @@ export default function AboutPage() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1.5
+            gap: 1
           }}>
-            <Link 
-              to="/committee/member3" 
-              style={{ 
-                textDecoration: 'none',
-                color: 'inherit',
-                width: '100%'
+            <Box
+              component="img"
+              src="/committee 3.png"
+              alt="Committee Member 3"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
               }}
             >
-              <Box
-                component="img"
-                src="/committee 3.png"
-                alt="Committee Member 3"
-                sx={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  objectFit: 'cover',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Typography
-                variant="h6"
-                sx={{
-                  textAlign: 'center',
-                  color: '#333',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  mt: 1.5
-                }}
-              >
-                Yue Ma
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: '0.9rem'
-                }}
-              >
-                Board Member
-                委员会成员
-              </Typography>
-            </Link>
+              Yue Ma
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              Board Member
+              委员会成员
+            </Typography>
           </Box>
 
           {/* Member 4 */}
@@ -392,56 +367,48 @@ export default function AboutPage() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1.5
+            gap: 1
           }}>
-            <Link 
-              to="/committee/member4" 
-              style={{ 
-                textDecoration: 'none',
-                color: 'inherit',
-                width: '100%'
+            <Box
+              component="img"
+              src="/committee 4.png"
+              alt="Committee Member 4"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
               }}
             >
-              <Box
-                component="img"
-                src="/committee 4.png"
-                alt="Committee Member 4"
-                sx={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  objectFit: 'cover',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Typography
-                variant="h6"
-                sx={{
-                  textAlign: 'center',
-                  color: '#333',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  mt: 1.5
-                }}
-              >
-                Brandon Shen
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: '0.9rem'
-                }}
-              >
-                Board Member
-                委员会成员
-              </Typography>
-            </Link>
+              Brandon Shen
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              Board Member
+              委员会成员
+            </Typography>
           </Box>
 
           {/* Member 5 */}
@@ -449,56 +416,48 @@ export default function AboutPage() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1.5
+            gap: 1
           }}>
-            <Link 
-              to="/committee/member5" 
-              style={{ 
-                textDecoration: 'none',
-                color: 'inherit',
-                width: '100%'
+            <Box
+              component="img"
+              src="/committee 5.png"
+              alt="Committee Member 5"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
               }}
             >
-              <Box
-                component="img"
-                src="/committee 5.png"
-                alt="Committee Member 5"
-                sx={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  objectFit: 'cover',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Typography
-                variant="h6"
-                sx={{
-                  textAlign: 'center',
-                  color: '#333',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  mt: 1.5
-                }}
-              >
-                Shawn Tian
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: '0.9rem'
-                }}
-              >
-                Board Member
-                委员会成员
-              </Typography>
-            </Link>
+              Shawn Tian
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              Board Member
+              委员会成员
+            </Typography>
           </Box>
 
           {/* Member 6 */}
@@ -506,56 +465,146 @@ export default function AboutPage() {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 1.5
+            gap: 1
           }}>
-            <Link 
-              to="/committee/member6" 
-              style={{ 
-                textDecoration: 'none',
-                color: 'inherit',
-                width: '100%'
+            <Box
+              component="img"
+              src="/committee 6.png"
+              alt="Committee Member 6"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
               }}
             >
-              <Box
-                component="img"
-                src="/committee 6.png"
-                alt="Committee Member 6"
-                sx={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  objectFit: 'cover',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'scale(1.05)'
-                  }
-                }}
-              />
-              <Typography
-                variant="h6"
-                sx={{
-                  textAlign: 'center',
-                  color: '#333',
-                  fontWeight: 600,
-                  fontSize: '1.1rem',
-                  mt: 1.5
-                }}
-              >
-                Ciping Wu
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: '0.9rem'
-                }}
-              >
-                Board Member
-                委员会成员
-              </Typography>
-            </Link>
+              Ciping Wu
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              Board Member
+              委员会成员
+            </Typography>
+          </Box>
+
+          {/* Member 7 */}
+          <Box sx={{ 
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <Box
+              component="img"
+              src="/committee 7.png"
+              alt="Committee Member 7"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
+              }}
+            >
+              Member 7
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              Board Member
+              委员会成员
+            </Typography>
+          </Box>
+
+          {/* Member 8 */}
+          <Box sx={{ 
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <Box
+              component="img"
+              src="/Committee 8.png"
+              alt="Committee Member 8"
+              sx={{
+                width: '150%',
+                maxWidth: '180px',
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: '12px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'scale(1.05)'
+                }
+              }}
+            />
+            <Typography
+              variant="h6"
+              sx={{
+                textAlign: 'center',
+                color: '#333',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                mt: 0.5
+              }}
+            >
+              Xiaoqing Guo
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{
+                textAlign: 'center',
+                color: '#666',
+                fontSize: '0.8rem'
+              }}
+            >
+              Secretary Committee
+              秘书
+            </Typography>
           </Box>
         </Box>
       </Container>
