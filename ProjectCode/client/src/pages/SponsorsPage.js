@@ -62,25 +62,21 @@ export default function SponsorsPage() {
 
         // Process individual donors
         const individualData = individualParsed.data
-          .filter(donor => donor.name && donor.amount) // Filter out empty rows
+          .filter(donor => donor['WECHAT NAME'] && donor.AMOUNT && donor.NOTES !== 'Anonymous Donor') // Filter out empty rows and anonymous donors
           .map((donor, index) => ({
             id: index,
-            name: donor.name,
-            organization: donor.organization || '',
-            calling: donor.calling || '',
-            amount: Number(donor.amount),
-            donateTime: new Date(donor.donateTime)
-          }));
+            name: donor['WECHAT NAME']
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
 
         // Process enterprise donors
         const enterpriseData = enterpriseParsed.data
           .filter(donor => donor.name && donor.amount) // Filter out empty rows
           .map((donor, index) => ({
             id: index,
-            name: donor.name,
-            amount: Number(donor.amount),
-            donateTime: new Date(donor.donateTime)
-          }));
+            name: donor.name
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
 
         console.log('Processed data:', {
           individualDonors: individualData.length,
@@ -100,9 +96,7 @@ export default function SponsorsPage() {
   }, []);
 
   const individualColumns = [
-    { field: 'name', headerName: 'Name', width: 200 },
-    { field: 'organization', headerName: 'Organization', width: 200 },
-    { field: 'calling', headerName: 'Title', width: 100 }
+    { field: 'name', headerName: 'Name', width: 300 }
   ];
 
   const enterpriseColumns = [

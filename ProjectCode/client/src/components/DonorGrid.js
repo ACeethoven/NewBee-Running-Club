@@ -12,7 +12,7 @@ const DonorGrid = ({ data }) => {
       <Grid container spacing={2}>
         {/* Left Column */}
         <Grid item xs={12} md={6}>
-          {leftColumn.map((donor, index) => (
+          {leftColumn.map((donor) => (
             <Box
               key={donor.id}
               sx={{
@@ -24,15 +24,14 @@ const DonorGrid = ({ data }) => {
               }}
             >
               <Typography variant="body1">
-                {donor.calling} {donor.name}
-                {donor.organization && ` - ${donor.organization}`}
+                {donor.name}
               </Typography>
             </Box>
           ))}
         </Grid>
         {/* Right Column */}
         <Grid item xs={12} md={6}>
-          {rightColumn.map((donor, index) => (
+          {rightColumn.map((donor) => (
             <Box
               key={donor.id}
               sx={{
@@ -44,8 +43,7 @@ const DonorGrid = ({ data }) => {
               }}
             >
               <Typography variant="body1">
-                {donor.calling} {donor.name}
-                {donor.organization && ` - ${donor.organization}`}
+                {donor.name}
               </Typography>
             </Box>
           ))}

@@ -1,7 +1,5 @@
 // List of meeting files - this will be updated as new files are added
 const meetingFiles = [
-  '2024-04-30.md',
-  '2024-05-15.md',
   '2025-05-30.md'
 ];
 
