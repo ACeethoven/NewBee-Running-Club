@@ -19,7 +19,7 @@ export default function HighlightsPage() {
 
   const handleImageError = (e) => {
     console.error('Image failed to load:', e.target.src);
-    e.target.src = '/images/placeholder_highlight.png';
+    e.target.src = '/images/2025/20250517_bk_half.jpg';
   };
 
   useEffect(() => {
@@ -34,11 +34,11 @@ export default function HighlightsPage() {
       .then(csvData => {
         Papa.parse(csvData, {
           header: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => header.trim(),
+          transform: (value) => value.trim(),
           complete: (results) => {
-            // Set reference date to 2025-05-16
-            const referenceDate = '2025-05-16';
-            console.log('Reference date:', referenceDate);
-            
+            console.log('Raw parsed results:', results.data);
             // Sort events by date and time, and filter for past events
             const sortedEvents = results.data
               .filter(event => event.id) // Remove empty rows
@@ -48,31 +48,42 @@ export default function HighlightsPage() {
                 const [hours, minutes] = event.time.split(':').map(Number);
                 const isPM = event.time.toLowerCase().includes('pm');
                 const eventDate = new Date(year, month - 1, day, isPM ? hours + 12 : hours, minutes);
-                console.log('Event:', event.name, 'Date:', event.date, 'Is past?', event.date < referenceDate);
+                console.log('Event:', event.name, 'Date:', event.date, 'Time:', event.time, 'Status:', event.status, 'Image:', event.image, 'Raw event:', event);
                 
                 return {
                   ...event,
-                  image: `/images/placeholder_highlight.png`, // Use correct path
-                  parsedDate: eventDate // Store the parsed date for comparison
+                  image: event.image ? `/${event.image}` : '/images/2025/20250517_bk_half.jpg', // Use latest event image as placeholder
+                  parsedDate: eventDate, // Store the parsed date for comparison
+                  time: event.time, // Ensure time is preserved exactly as in CSV
+                  date: event.date // Ensure date is preserved exactly as in CSV
                 };
               })
-              .filter(event => event.date < referenceDate) // Filter past events using string comparison
+              .filter(event => event.status === 'Highlight') // Filter by Highlight status
               .sort((a, b) => b.date.localeCompare(a.date)); // Sort in reverse chronological order
             
-            console.log('Past events:', sortedEvents);
+            console.log('Highlight events:', sortedEvents);
             
             // Set past events
             setPastEvents(sortedEvents);
             
             // Set featured events (first 3 events)
-            setFeaturedEvents(sortedEvents.slice(0, 3).map(event => ({
-              id: event.id,
-              title: event.name,
-              chineseTitle: event.chineseName,
-              image: event.image,
-              description: event.description,
-              date: event.date
-            })));
+            const featured = sortedEvents.slice(0, 3).map(event => {
+              console.log('Creating featured event:', event.name, 'with image:', event.image);
+              return {
+                id: event.id,
+                title: event.name,
+                chineseTitle: event.chineseName,
+                image: event.image,
+                description: event.description,
+                date: event.date,
+                time: event.time,
+                location: event.location,
+                chineseLocation: event.chineseLocation,
+                chineseDescription: event.chineseDescription
+              };
+            });
+            console.log('Featured events:', featured);
+            setFeaturedEvents(featured);
           },
           error: (error) => {
             console.error('Error parsing CSV:', error);
@@ -188,9 +199,6 @@ export default function HighlightsPage() {
                   </Typography>
                   <Typography gutterBottom variant="subtitle1" color="text.secondary">
                     {event.chineseTitle}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {event.description}
                   </Typography>
                   <Button 
                     variant="contained" 
@@ -424,12 +432,6 @@ export default function HighlightsPage() {
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   {event.chineseLocation}
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  {event.description}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {event.chineseDescription}
-                </Typography>
               </Box>
             </Card>
           ))}
@@ -480,20 +482,43 @@ export default function HighlightsPage() {
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 {selectedEvent.chineseName || selectedEvent.chineseTitle}
               </Typography>
-              <Typography variant="body1" paragraph>
-                {selectedEvent.description}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Date: {selectedEvent.date}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Time: {selectedEvent.time}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Location: {selectedEvent.location}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                {selectedEvent.chineseLocation}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Date: {selectedEvent.date}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Time: {selectedEvent.time}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Location: {selectedEvent.location}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  {selectedEvent.chineseLocation}
+                </Typography>
+              </Box>
+              <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-line' }}>
+                {selectedEvent.description.split(/(@?https?:\/\/[^\s]+)/g).map((part, index) => {
+                  if (part.match(/^@?https?:\/\//)) {
+                    return (
+                      <a 
+                        key={index}
+                        href={part.startsWith('@') ? part.substring(1) : part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ 
+                          color: '#FFB84D', 
+                          textDecoration: 'none',
+                          '&:hover': {
+                            textDecoration: 'underline'
+                          }
+                        }}
+                      >
+                        {part}
+                      </a>
+                    );
+                  }
+                  return part;
+                })}
               </Typography>
               <Box sx={{ mt: 2 }}>
                 <Button 
