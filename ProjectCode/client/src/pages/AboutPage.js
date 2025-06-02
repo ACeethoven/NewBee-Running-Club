@@ -1,5 +1,5 @@
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { Accordion, AccordionDetails, AccordionSummary, Box, Container, Typography } from '@mui/material';
+import { Accordion, AccordionDetails, AccordionSummary, Box, Container, Modal, Typography } from '@mui/material';
 import { marked } from 'marked';
 import { useEffect, useState } from 'react';
 import { getMeetingContent, getMeetingFiles } from '../api/meetings';
@@ -11,6 +11,15 @@ export default function AboutPage() {
   const [loading, setLoading] = useState(true);
   const [electionStandards, setElectionStandards] = useState('');
   const [standardsLoading, setStandardsLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(null);
+
+  const handleImageClick = (imageSrc) => {
+    setSelectedImage(imageSrc);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedImage(null);
+  };
 
   useEffect(() => {
     const fetchElectionStandards = async () => {
@@ -226,6 +235,7 @@ export default function AboutPage() {
               component="img"
               src="/committee 1.png"
               alt="Committee Member 1"
+              onClick={() => handleImageClick("/committee 1.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -234,6 +244,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -275,6 +286,7 @@ export default function AboutPage() {
               component="img"
               src="/committee 2.png"
               alt="Committee Member 2"
+              onClick={() => handleImageClick("/committee 2.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -283,6 +295,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -324,6 +337,7 @@ export default function AboutPage() {
               component="img"
               src="/committee 3.png"
               alt="Committee Member 3"
+              onClick={() => handleImageClick("/committee 3.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -332,6 +346,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -373,6 +388,7 @@ export default function AboutPage() {
               component="img"
               src="/committee 4.png"
               alt="Committee Member 4"
+              onClick={() => handleImageClick("/committee 4.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -381,6 +397,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -422,6 +439,7 @@ export default function AboutPage() {
               component="img"
               src="/committee 5.png"
               alt="Committee Member 5"
+              onClick={() => handleImageClick("/committee 5.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -430,6 +448,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -471,6 +490,7 @@ export default function AboutPage() {
               component="img"
               src="/committee 6.png"
               alt="Committee Member 6"
+              onClick={() => handleImageClick("/committee 6.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -479,6 +499,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -520,6 +541,7 @@ export default function AboutPage() {
               component="img"
               src="/committee 7.png"
               alt="Committee Member 7"
+              onClick={() => handleImageClick("/committee 7.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -528,6 +550,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -569,6 +592,7 @@ export default function AboutPage() {
               component="img"
               src="/Committee 8.png"
               alt="Committee Member 8"
+              onClick={() => handleImageClick("/Committee 8.png")}
               sx={{
                 width: '150%',
                 maxWidth: '180px',
@@ -577,6 +601,7 @@ export default function AboutPage() {
                 borderRadius: '12px',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'transform 0.2s',
+                cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.05)'
                 }
@@ -608,6 +633,45 @@ export default function AboutPage() {
           </Box>
         </Box>
       </Container>
+
+      {/* Image Modal */}
+      <Modal
+        open={!!selectedImage}
+        onClose={handleCloseModal}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)'
+        }}
+      >
+        <Box
+          onClick={handleCloseModal}
+          sx={{
+            position: 'relative',
+            width: 'auto',
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+            cursor: 'pointer'
+          }}
+        >
+          {selectedImage && (
+            <Box
+              component="img"
+              src={selectedImage}
+              alt="Enlarged Committee Member"
+              sx={{
+                width: 'auto',
+                height: 'auto',
+                maxWidth: '100%',
+                maxHeight: '90vh',
+                objectFit: 'contain',
+                borderRadius: '8px'
+              }}
+            />
+          )}
+        </Box>
+      </Modal>
 
       {/* Committee Election Standards Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 0, mb: 4 }}>
