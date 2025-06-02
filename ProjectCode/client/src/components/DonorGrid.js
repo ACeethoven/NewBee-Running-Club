@@ -23,9 +23,16 @@ const DonorGrid = ({ data }) => {
                 }
               }}
             >
-              <Typography variant="body1">
-                {donor.name}
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body1">
+                  {donor.name}
+                </Typography>
+                {donor.notes && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', ml: 2 }}>
+                    {donor.notes}
+                  </Typography>
+                )}
+              </Box>
             </Box>
           ))}
         </Grid>
@@ -42,9 +49,16 @@ const DonorGrid = ({ data }) => {
                 }
               }}
             >
-              <Typography variant="body1">
-                {donor.name}
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body1">
+                  {donor.name}
+                </Typography>
+                {donor.notes && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary', ml: 2 }}>
+                    {donor.notes}
+                  </Typography>
+                )}
+              </Box>
             </Box>
           ))}
         </Grid>
