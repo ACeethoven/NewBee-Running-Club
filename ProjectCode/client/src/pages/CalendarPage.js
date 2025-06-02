@@ -34,12 +34,12 @@ export default function CalendarPage() {
       .then(csvData => {
         Papa.parse(csvData, {
           header: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => header.trim(),
+          transform: (value) => value.trim(),
           complete: (results) => {
-            // Set reference date to 2025-01-01
-            const referenceDate = '2025-01-01';
-            console.log('Reference date:', referenceDate);
-            
-            // Sort events by date and time, and filter for future events
+            console.log('Raw parsed results:', results.data);
+            // Sort events by date and time
             const sortedEvents = results.data
               .filter(event => event.id) // Remove empty rows
               .map(event => {
@@ -48,18 +48,18 @@ export default function CalendarPage() {
                 const [hours, minutes] = event.time.split(':').map(Number);
                 const isPM = event.time.toLowerCase().includes('pm');
                 const eventDate = new Date(year, month - 1, day, isPM ? hours + 12 : hours, minutes);
-                console.log('Event:', event.name, 'Date:', event.date, 'Is future?', event.date > referenceDate);
+                console.log('Event:', event.name, 'Status:', event.status, 'Raw event:', event);
                 
                 return {
                   ...event,
                   image: `/images/placeholder-event.jpg`, // Use correct path
-                  parsedDate: eventDate
+                  parsedDate: eventDate // Store the parsed date for comparison
                 };
               })
-              .filter(event => event.date > referenceDate) // Filter future events using string comparison
+              .filter(event => event.status === 'Upcoming') // Filter by Upcoming status
               .sort((a, b) => a.date.localeCompare(b.date)); // Sort in chronological order
             
-            console.log('Future events:', sortedEvents);
+            console.log('Upcoming events:', sortedEvents);
             
             // Set upcoming events
             setUpcomingEvents(sortedEvents);
@@ -71,7 +71,11 @@ export default function CalendarPage() {
               chineseTitle: event.chineseName,
               image: event.image,
               description: event.description,
-              date: event.date
+              date: event.date,
+              time: event.time,
+              location: event.location,
+              chineseLocation: event.chineseLocation,
+              chineseDescription: event.chineseDescription
             })));
           },
           error: (error) => {

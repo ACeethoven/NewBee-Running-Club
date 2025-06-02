@@ -65,7 +65,8 @@ export default function SponsorsPage() {
           .filter(donor => donor['WECHAT NAME'] && donor.AMOUNT && donor.NOTES !== 'Anonymous Donor') // Filter out empty rows and anonymous donors
           .map((donor, index) => ({
             id: index,
-            name: donor['WECHAT NAME']
+            name: donor['WECHAT NAME'],
+            notes: donor.NOTES
           }))
           .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
 

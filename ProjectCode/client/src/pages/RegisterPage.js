@@ -1,22 +1,22 @@
 import GitHubIcon from '@mui/icons-material/GitHub';
 import GoogleIcon from '@mui/icons-material/Google';
 import {
-    Alert,
-    Box,
-    Button,
-    Container,
-    Divider,
-    Grid,
-    Paper,
-    TextField,
-    Typography
+  Alert,
+  Box,
+  Button,
+  Container,
+  Divider,
+  Grid,
+  Paper,
+  TextField,
+  Typography
 } from '@mui/material';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-    registerWithEmailAndPassword,
-    signInWithGithub,
-    signInWithGoogle
+  registerWithEmailAndPassword,
+  signInWithGithub,
+  signInWithGoogle
 } from '../firebase/auth';
 
 const RegisterPage = () => {
@@ -39,7 +39,7 @@ const RegisterPage = () => {
     setLoading(true);
     
     try {
-      const { error } = await registerWithEmailAndPassword(email, password, name);
+      const { user, error } = await registerWithEmailAndPassword(email, password, name);
       if (error) {
         setError(error);
       } else {

@@ -1,12 +1,12 @@
 import {
-    Alert,
-    Avatar,
-    Box,
-    Button,
-    Container,
-    Divider,
-    Paper,
-    Typography
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Container,
+  Divider,
+  Paper,
+  Typography
 } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -16,7 +16,6 @@ import { logout } from '../firebase/auth';
 const ProfilePage = () => {
   const { currentUser } = useAuth();
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -29,7 +28,7 @@ const ProfilePage = () => {
     setError('');
     
     try {
-      const { error } = await logout();
+      const { success, error } = await logout();
       if (error) {
         setError(error);
       }
@@ -60,7 +59,6 @@ const ProfilePage = () => {
         <Divider sx={{ mb: 3 }} />
         
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        {message && <Alert severity="success" sx={{ mb: 2 }}>{message}</Alert>}
         
         <Box sx={{ display: 'flex', justifyContent: 'center' }}>
           <Button 
