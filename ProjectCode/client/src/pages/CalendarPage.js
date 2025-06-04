@@ -52,7 +52,7 @@ export default function CalendarPage() {
                 
                 return {
                   ...event,
-                  image: `/images/placeholder-event.jpg`, // Use correct path
+                  image: event.image, // Use the image link from the CSV file
                   parsedDate: eventDate // Store the parsed date for comparison
                 };
               })
