@@ -271,7 +271,7 @@ export default function AboutPage() {
               }}
             >
               President, Founder
-              会长，创始人
+              主席，创始人
             </Typography>
           </Box>
 
@@ -311,7 +311,7 @@ export default function AboutPage() {
                 mt: 0.5
               }}
             >
-              Lingqiao Tang
+              Yue Ma
             </Typography>
             <Typography
               variant="body1"
@@ -321,8 +321,8 @@ export default function AboutPage() {
                 fontSize: '0.8rem'
               }}
             >
-              Board Member
-              委员会成员
+              Vice President, Founder
+              副主席，创始人
             </Typography>
           </Box>
 
@@ -362,7 +362,7 @@ export default function AboutPage() {
                 mt: 0.5
               }}
             >
-              Yue Ma
+              Lingqiao Tang
             </Typography>
             <Typography
               variant="body1"
