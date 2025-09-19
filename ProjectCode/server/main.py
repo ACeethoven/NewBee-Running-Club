@@ -5,7 +5,7 @@ from sqlalchemy import func
 from typing import List
 import os
 
-from database import get_db, create_tables, Donor
+from database import get_db, create_tables, Donor, Results
 from models import DonorCreate, DonorUpdate, DonorResponse, DonorsListResponse, DonationSummary
 
 app = FastAPI(
@@ -30,7 +30,129 @@ def startup_event():
 
 @app.get("/")
 def read_root():
-    return {"message": "NewBee Running Club Donors API is running!", "database": "AWS MySQL RDS"}
+    return {"message": "NewBee Running Club API is running!", "database": "AWS MySQL RDS"}
+
+# RACE RESULTS ENDPOINTS
+
+@app.get("/api/results/available-years")
+def get_available_years(db: Session = Depends(get_db)):
+    """Get list of years that have race data"""
+    years = db.query(
+        func.extract('year', Results.race_time).label('year')
+    ).distinct().order_by(
+        func.extract('year', Results.race_time).desc()
+    ).all()
+
+    return {"years": [int(year.year) for year in years]}
+
+@app.get("/api/results/men-records")
+def get_men_records(year: int = None, db: Session = Depends(get_db)):
+    """Get men's top 10 times for each race distance"""
+    # Base query for male runners
+    query = db.query(Results).filter(
+        Results.gender_age.like('M%')  # Filter for male runners
+    )
+
+    # Add year filter if specified
+    if year:
+        query = query.filter(func.extract('year', Results.race_time) == year)
+
+    # Get all results and group by distance
+    all_results = query.all()
+
+    # Group by distance and get top 10 for each
+    distance_records = {}
+    for result in all_results:
+        if result.race_distance not in distance_records:
+            distance_records[result.race_distance] = []
+        distance_records[result.race_distance].append(result)
+
+    # Sort each distance group by time and take top 10
+    records = []
+    for distance, results in distance_records.items():
+        # Sort by overall_time (assuming format allows string comparison)
+        sorted_results = sorted(results, key=lambda x: x.overall_time or 'ZZ:ZZ:ZZ')[:10]
+
+        for rank, result in enumerate(sorted_results, 1):
+            records.append({
+                "distance": distance,
+                "rank": rank,
+                "time": result.overall_time,
+                "runner_name": result.name,
+                "race_name": result.race,
+                "race_date": result.race_time.strftime('%Y-%m-%d'),
+                "age_group": result.gender_age,
+                "pace": result.pace
+            })
+
+    return {"men_records": records}
+
+@app.get("/api/results/women-records")
+def get_women_records(year: int = None, db: Session = Depends(get_db)):
+    """Get women's top 10 times for each race distance"""
+    # Base query for female runners
+    query = db.query(Results).filter(
+        Results.gender_age.like('W%')  # Filter for female runners
+    )
+
+    # Add year filter if specified
+    if year:
+        query = query.filter(func.extract('year', Results.race_time) == year)
+
+    # Get all results and group by distance
+    all_results = query.all()
+
+    # Group by distance and get top 10 for each
+    distance_records = {}
+    for result in all_results:
+        if result.race_distance not in distance_records:
+            distance_records[result.race_distance] = []
+        distance_records[result.race_distance].append(result)
+
+    # Sort each distance group by time and take top 10
+    records = []
+    for distance, results in distance_records.items():
+        # Sort by overall_time (assuming format allows string comparison)
+        sorted_results = sorted(results, key=lambda x: x.overall_time or 'ZZ:ZZ:ZZ')[:10]
+
+        for rank, result in enumerate(sorted_results, 1):
+            records.append({
+                "distance": distance,
+                "rank": rank,
+                "time": result.overall_time,
+                "runner_name": result.name,
+                "race_name": result.race,
+                "race_date": result.race_time.strftime('%Y-%m-%d'),
+                "age_group": result.gender_age,
+                "pace": result.pace
+            })
+
+    return {"women_records": records}
+
+@app.get("/api/results/all-races")
+def get_all_races(db: Session = Depends(get_db)):
+    """Get list of all races and distances"""
+    races = db.query(
+        Results.race,
+        Results.race_distance,
+        Results.race_time,
+        func.count(Results.id).label('runner_count')
+    ).group_by(
+        Results.race, Results.race_distance, Results.race_time
+    ).order_by(
+        Results.race_time.desc()
+    ).all()
+
+    return {
+        "races": [
+            {
+                "race_name": race.race,
+                "distance": race.race_distance,
+                "date": race.race_time.strftime('%Y-%m-%d'),
+                "runner_count": race.runner_count
+            } for race in races
+        ]
+    }
 
 # Main endpoint for SponsorsPage - replaces CSV fetching
 @app.get("/api/donors", response_model=DonorsListResponse)
@@ -151,7 +273,7 @@ def get_donation_summary(db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "donors_api:app", 
+        "main:app", 
         host=os.getenv("API_HOST", "0.0.0.0"), 
         port=int(os.getenv("API_PORT", 8000)),
         reload=os.getenv("DEBUG", "False").lower() == "true"

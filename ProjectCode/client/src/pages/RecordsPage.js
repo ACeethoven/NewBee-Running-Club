@@ -1,5 +1,5 @@
 import SearchIcon from '@mui/icons-material/Search';
-import { Box, Button, Container, InputAdornment, Paper, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material';
+import { Box, Button, Container, FormControl, InputAdornment, InputLabel, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material';
 import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
 import ClubEntryRules from '../components/ClubEntryRules';
@@ -15,6 +15,8 @@ export default function RecordsPage() {
   });
   const [recordsData, setRecordsData] = useState([]);
   const [womenRecordsData, setWomenRecordsData] = useState([]);
+  const [availableYears, setAvailableYears] = useState([]);
+  const [selectedYear, setSelectedYear] = useState('');
   const [loading, setLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState(0);
   const [currentRecordsTab, setCurrentRecordsTab] = useState(0);
@@ -22,15 +24,70 @@ export default function RecordsPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const distances = [
-    { label: "1 Mile\n一英里", value: "1mile" },
-    { label: "5K\n五公里", value: "5k" },
-    { label: "4 Mile\n四英里", value: "4mile" },
-    { label: "5 Mile\n五英里", value: "5mile" },
-    { label: "10K\n十公里", value: "10k" },
-    { label: "10 Mile\n十英里", value: "10mile" },
-    { label: "Half Marathon\n半程马拉松", value: "half_marathon" },
-    { label: "Marathon\n全程马拉松", value: "marathon" }
+    { label: "1 Mile\n一英里", value: "1M" },
+    { label: "5K\n五公里", value: "5K" },
+    { label: "4M\n四英里", value: "4M" },
+    { label: "5M\n五英里", value: "5M" },
+    { label: "10K\n十公里", value: "10K" },
+    { label: "10M\n十英里", value: "10M" },
+    { label: "12M\n十二英里", value: "12M" },
+    { label: "Half Marathon\n半程马拉松", value: "Half Marathon" },
+    { label: "Marathon\n全程马拉松", value: "Marathon" }
   ];
+
+  const fetchRecordsData = async (year = null) => {
+    try {
+      // Construct API URLs with optional year parameter
+      const yearParam = year ? `?year=${year}` : '';
+      const menUrl = `http://localhost:8000/api/results/men-records${yearParam}`;
+      const womenUrl = `http://localhost:8000/api/results/women-records${yearParam}`;
+
+      // Fetch men's records data from API
+      const menRecordsResponse = await fetch(menUrl);
+      const menRecordsJson = await menRecordsResponse.json();
+
+      // Transform API data to match component structure
+      const transformedMenRecords = menRecordsJson.men_records?.map((record) => ({
+        rank: record.rank,
+        fullName: record.runner_name,
+        time: record.time,
+        race: record.race_name,
+        distance: record.distance,
+        ageGroup: record.age_group,
+        pace: record.pace,
+        raceDate: record.race_date
+      })) || [];
+
+      setRecordsData(transformedMenRecords);
+
+      // Fetch women's records data from API
+      const womenRecordsResponse = await fetch(womenUrl);
+      const womenRecordsJson = await womenRecordsResponse.json();
+
+      // Transform API data to match component structure
+      const transformedWomenRecords = womenRecordsJson.women_records?.map((record) => ({
+        rank: record.rank,
+        fullName: record.runner_name,
+        time: record.time,
+        race: record.race_name,
+        distance: record.distance,
+        ageGroup: record.age_group,
+        pace: record.pace,
+        raceDate: record.race_date
+      })) || [];
+
+      setWomenRecordsData(transformedWomenRecords);
+    } catch (error) {
+      console.error('Error fetching records data:', error);
+      setRecordsData([]);
+      setWomenRecordsData([]);
+    }
+  };
+
+  const handleYearChange = async (year) => {
+    setSelectedYear(year);
+    await fetchRecordsData(year || null);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,33 +139,13 @@ export default function RecordsPage() {
             })
         );
 
-        // Fetch men's records data
-        const recordsResponse = await fetch('/data/club_records_men.csv');
-        const recordsText = await recordsResponse.text();
-        Papa.parse(recordsText, {
-          header: true,
-          complete: (results) => {
-            setRecordsData(results.data.filter(row => row.fullName));
-          },
-          error: (error) => {
-            console.error('Error parsing records CSV:', error);
-            setRecordsData([]);
-          }
-        });
+        // Fetch available years
+        const yearsResponse = await fetch('http://localhost:8000/api/results/available-years');
+        const yearsJson = await yearsResponse.json();
+        setAvailableYears(yearsJson.years || []);
 
-        // Fetch women's records data
-        const womenRecordsResponse = await fetch('/data/club_records_women.csv');
-        const womenRecordsText = await womenRecordsResponse.text();
-        Papa.parse(womenRecordsText, {
-          header: true,
-          complete: (results) => {
-            setWomenRecordsData(results.data.filter(row => row.fullName));
-          },
-          error: (error) => {
-            console.error('Error parsing women records CSV:', error);
-            setWomenRecordsData([]);
-          }
-        });
+        // Fetch records data (initially without year filter)
+        await fetchRecordsData();
 
         const results = await Promise.all(fetchPromises);
         const newData = {};
@@ -164,16 +201,14 @@ export default function RecordsPage() {
     const currentDistance = distances[currentRecordsTab].value;
     return recordsData
       .filter(row => row.distance === currentDistance)
-      .sort((a, b) => a.rank - b.rank)
-      .slice(0, 10);
+      .sort((a, b) => a.rank - b.rank);
   };
 
   const getFilteredWomenRecordsData = () => {
     const currentDistance = distances[currentRecordsTab].value;
     return womenRecordsData
       .filter(row => row.distance === currentDistance)
-      .sort((a, b) => a.rank - b.rank)
-      .slice(0, 10);
+      .sort((a, b) => a.rank - b.rank);
   };
 
   const renderTableContent = () => {
@@ -226,6 +261,45 @@ export default function RecordsPage() {
           Club Records
           俱乐部记录
         </Typography>
+
+        {/* Year Filter */}
+        <Box sx={{ mb: 3 }}>
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel
+              sx={{
+                color: '#FFA500',
+                '&.Mui-focused': { color: '#FFA500' }
+              }}
+            >
+              Select Year 选择年份
+            </InputLabel>
+            <Select
+              value={selectedYear}
+              onChange={(e) => handleYearChange(e.target.value)}
+              label="Select Year 选择年份"
+              sx={{
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#FFA500',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#FFA500',
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: '#FFA500',
+                },
+              }}
+            >
+              <MenuItem value="">
+                All Years 所有年份
+              </MenuItem>
+              {availableYears.map((year) => (
+                <MenuItem key={year} value={year}>
+                  {year}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
 
         {/* Records Tabs */}
         <Tabs
