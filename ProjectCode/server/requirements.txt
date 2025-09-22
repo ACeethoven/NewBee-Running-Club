@@ -5,3 +5,7 @@ pymysql
 cryptography
 pydantic
 python-dotenv
+pandas
+openpyxl
+xlrd
+requests
