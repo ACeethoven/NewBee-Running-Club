@@ -52,17 +52,17 @@ class DonationSummary(BaseModel):
 
 # Member Status Enum
 class MemberStatus(str, Enum):
-    member = "member"
-    committee = "committee"
-    admin = "admin"
-    not_with_newbee_anymore = "not_with_newbee_anymore"
+    pending = "pending"  # New signups awaiting committee approval
+    runner = "runner"     # Approved regular members
+    admin = "admin"       # Admin and committee members with elevated privileges
+    quit = "quit"         # Members who left the club
 
 
 # Member Schemas
 class MemberBase(BaseModel):
     username: str = Field(..., max_length=50)
     email: str = Field(..., max_length=255)
-    status: MemberStatus = Field(default=MemberStatus.member)
+    status: MemberStatus = Field(default=MemberStatus.pending)
     committee_position: Optional[str] = Field(None, max_length=100)
     committee_position_cn: Optional[str] = Field(None, max_length=100)
     display_name: Optional[str] = Field(None, max_length=100)
@@ -142,3 +142,17 @@ class FirebaseUserSync(BaseModel):
     email: str = Field(..., max_length=255)
     display_name: Optional[str] = Field(None, max_length=100)
     photo_url: Optional[str] = Field(None, max_length=500)
+
+
+class JoinApplicationRequest(BaseModel):
+    """Join application form submission"""
+    name: str = Field(..., max_length=255)
+    email: str = Field(..., max_length=255)
+    nyrr_id: Optional[str] = Field(None, max_length=50)
+    running_experience: str
+    location: str
+    weekly_frequency: str
+    monthly_mileage: str
+    race_experience: Optional[str] = None
+    goals: str
+    introduction: str

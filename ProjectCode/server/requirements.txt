@@ -10,3 +10,5 @@ pandas
 openpyxl
 xlrd
 requests
+aiosmtplib
+email-validator

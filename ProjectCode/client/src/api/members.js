@@ -75,3 +75,63 @@ export async function getMembersForCredits() {
 export async function getCommitteeMembers() {
   return api.get('/api/members/committee/list');
 }
+
+/**
+ * Submit join application
+ * @param {Object} applicationData - Application form data
+ * @param {string} applicationData.name - Full name
+ * @param {string} applicationData.email - Email address
+ * @param {string} [applicationData.nyrr_id] - NYRR Runner ID
+ * @param {string} applicationData.running_experience - Running experience description
+ * @param {string} applicationData.location - Running location
+ * @param {string} applicationData.weekly_frequency - Weekly running frequency
+ * @param {string} applicationData.monthly_mileage - Monthly mileage
+ * @param {string} [applicationData.race_experience] - Race experience
+ * @param {string} applicationData.goals - Running goals
+ * @param {string} applicationData.introduction - Self introduction
+ * @returns {Promise<Object>} Application response
+ */
+export async function submitJoinApplication(applicationData) {
+  return api.post('/api/join/submit', applicationData);
+}
+
+/**
+ * Helper to create auth headers for admin endpoints
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Object} Headers object
+ */
+function getAdminHeaders(firebaseUid) {
+  if (!firebaseUid) {
+    throw new Error('Firebase UID is required for admin operations');
+  }
+  return { 'X-Firebase-UID': firebaseUid };
+}
+
+/**
+ * Get all pending member applications (admin only)
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Promise<Array>} List of pending members
+ */
+export async function getPendingMembers(firebaseUid) {
+  return api.get('/api/members/pending/list', {}, getAdminHeaders(firebaseUid));
+}
+
+/**
+ * Approve a pending member application (admin only)
+ * @param {number} memberId - Member ID to approve
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Promise<Object>} Approval response
+ */
+export async function approveMember(memberId, firebaseUid) {
+  return api.put(`/api/members/${memberId}/approve`, {}, getAdminHeaders(firebaseUid));
+}
+
+/**
+ * Reject a pending member application (admin only)
+ * @param {number} memberId - Member ID to reject
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Promise<Object>} Rejection response
+ */
+export async function rejectMember(memberId, firebaseUid) {
+  return api.put(`/api/members/${memberId}/reject`, {}, getAdminHeaders(firebaseUid));
+}
