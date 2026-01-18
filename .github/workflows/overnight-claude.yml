@@ -2,7 +2,7 @@
 name: Overnight Claude Work
 on:
   schedule:
-    - cron: "29 10 * * *"  # 2:29 AM PST (San Francisco winter time)
+    - cron: "29 10 * * *"  # 2:33 AM PST (San Francisco winter time)
   workflow_dispatch:  # Allow manual trigger for testing
 
 permissions:
