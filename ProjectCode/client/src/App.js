@@ -7,6 +7,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import NavBar from "./components/NavBar";
 import { AuthProvider } from "./context";
 import AboutPage from "./pages/AboutPage";
+import AdminPanelPage from "./pages/AdminPanelPage";
 import CalendarPage from "./pages/CalendarPage";
 import HighlightsPage from "./pages/HighlightsPage";
 import HomePage from "./pages/HomePage";
@@ -65,6 +66,7 @@ export default function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/admin" element={<AdminPanelPage />} />
               </Routes>
             </Box>
 
