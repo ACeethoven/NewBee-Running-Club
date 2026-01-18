@@ -9,19 +9,76 @@ import {
   DialogContent,
   DialogTitle,
   Fade,
+  FormControl,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Step,
   StepLabel,
   Stepper,
   TextField,
   Typography
 } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import React, { useEffect, useRef, useState } from 'react';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 import { submitJoinApplication } from '../api/members';
 
 const steps = ['Read Terms', 'Agree to Terms', 'Complete Questionnaire'];
+
+const locationOptions = [
+  { value: 'manhattan', label: 'Manhattan 曼哈顿' },
+  { value: 'brooklyn', label: 'Brooklyn 布鲁克林' },
+  { value: 'queens', label: 'Queens 皇后区' },
+  { value: 'bronx', label: 'Bronx 布朗克斯' },
+  { value: 'staten-island', label: 'Staten Island 史坦顿岛' },
+  { value: 'new-jersey', label: 'New Jersey 新泽西' },
+  { value: 'long-island', label: 'Long Island 长岛' },
+  { value: 'other', label: 'Other 其他' }
+];
+
+// Validation function for introduction
+const validateIntroduction = (text) => {
+  if (!text) return { valid: false, message: '', count: 0 };
+
+  // Count Chinese characters
+  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+
+  // Count English words (split by whitespace, filter empty)
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+  // Filter out words that are only Chinese characters
+  const englishWords = words.filter(w => !/^[\u4e00-\u9fff]+$/.test(w)).length;
+
+  // Check if meets minimum requirements
+  const meetsChineseMin = chineseChars >= 480;
+  const meetsEnglishMin = englishWords >= 120;
+
+  if (meetsChineseMin || meetsEnglishMin) {
+    return { valid: true, message: '', count: chineseChars > englishWords ? chineseChars : englishWords, type: chineseChars > englishWords ? 'chinese' : 'english' };
+  }
+
+  // Return which requirement is closer to being met
+  const chineseProgress = chineseChars / 480;
+  const englishProgress = englishWords / 120;
+
+  if (chineseProgress > englishProgress) {
+    return {
+      valid: false,
+      message: `${chineseChars}/480 Chinese characters. Need ${480 - chineseChars} more. / 中文字符 ${chineseChars}/480，还需要 ${480 - chineseChars} 个字符`,
+      count: chineseChars,
+      type: 'chinese'
+    };
+  } else {
+    return {
+      valid: false,
+      message: `${englishWords}/120 English words. Need ${120 - englishWords} more. / 英文单词 ${englishWords}/120，还需要 ${120 - englishWords} 个单词`,
+      count: englishWords,
+      type: 'english'
+    };
+  }
+};
 
 export default function JoinPage() {
   const [activeStep, setActiveStep] = useState(0);
@@ -31,6 +88,9 @@ export default function JoinPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [introValidation, setIntroValidation] = useState({ valid: true, message: '', count: 0 });
+  const [locationSelect, setLocationSelect] = useState('');
+  const [showOtherLocation, setShowOtherLocation] = useState(false);
   const termsContainerRef = useRef(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -76,15 +136,51 @@ export default function JoinPage() {
     handleNext();
   };
 
+  const handleLocationSelectChange = (e) => {
+    const value = e.target.value;
+    setLocationSelect(value);
+
+    if (value === 'other') {
+      setShowOtherLocation(true);
+      setFormData({
+        ...formData,
+        location: ''
+      });
+    } else {
+      setShowOtherLocation(false);
+      const selectedOption = locationOptions.find(opt => opt.value === value);
+      setFormData({
+        ...formData,
+        location: selectedOption ? selectedOption.label : ''
+      });
+    }
+  };
+
   const handleFormChange = (e) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+
+    // Validate introduction as user types
+    if (name === 'introduction') {
+      const validation = validateIntroduction(value);
+      setIntroValidation(validation);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate introduction before submission
+    const validation = validateIntroduction(formData.introduction);
+    if (!validation.valid) {
+      setIntroValidation(validation);
+      setSubmitError('Please complete your self-introduction with at least 120 English words or 480 Chinese characters. / 请完成您的自我介绍，至少120个英文单词或480个中文字符。');
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError('');
 
@@ -105,34 +201,44 @@ export default function JoinPage() {
 
       await submitJoinApplication(applicationData);
 
-      // Show success message
+      // Show success message - keep user on this page
       setSubmitSuccess(true);
-
-      // Reset form after a delay
-      setTimeout(() => {
-        setFormData({
-          name: '',
-          email: '',
-          nyrr_id: '',
-          runningExperience: '',
-          location: '',
-          weeklyFrequency: '',
-          monthlyMileage: '',
-          raceExperience: '',
-          goals: '',
-          introduction: '',
-        });
-        setActiveStep(0);
-        setAgreed(false);
-        setSubmitSuccess(false);
-      }, 5000);
 
     } catch (error) {
       console.error('Error submitting application:', error);
-      setSubmitError(error.message || 'Failed to submit application. Please try again.');
+      // Parse error details if available
+      let errorMessage = 'Failed to submit application. Please try again. / 提交失败，请重试。';
+      if (error.data?.detail) {
+        errorMessage = error.data.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      setSubmitError(errorMessage);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleStartOver = () => {
+    setFormData({
+      name: '',
+      email: '',
+      nyrr_id: '',
+      runningExperience: '',
+      location: '',
+      weeklyFrequency: '',
+      monthlyMileage: '',
+      raceExperience: '',
+      goals: '',
+      introduction: '',
+    });
+    setLocationSelect('');
+    setShowOtherLocation(false);
+    setActiveStep(0);
+    setAgreed(false);
+    setSubmitSuccess(false);
+    setSubmitError('');
+    setIntroValidation({ valid: true, message: '', count: 0 });
   };
 
   const renderTerms = () => (
@@ -141,9 +247,9 @@ export default function JoinPage() {
         Welcome to NewBee Running Club! 欢迎加入新蜂跑团！
       </Typography>
 
-      <Box 
+      <Box
         ref={termsContainerRef}
-        sx={{ 
+        sx={{
           height: '40vh',
           overflowY: 'auto',
           px: 2,
@@ -241,7 +347,7 @@ export default function JoinPage() {
 
         <Box sx={{ pl: 2, mb: 3 }}>
           <Typography paragraph>
-            (2) I am Mango, been in New York for ten years but just started running recently, mainly inspired by a friend who qualified for the New York Marathon through the NYRR 9+1 program - I want to run the NYC Marathon too! I live in Midtown. As a beginner, I can only run twice a week now, about 3-5K each time. I hope to get more guidance from experienced runners in the group to improve faster. Also, my family is worried about knee problems from running too much, so I'd like to consult experienced runners about injury-free running. I haven't participated in any races yet, but plan to register for NYRR's Team Championships 5-mile next month. My fastest 5K is 33 minutes, which is slow but much better than when I started. I'm really excited to find this group and hope to have fun together! 😄
+            (2) I am Mango, been in New York for ten years but just started running recently, mainly inspired by a friend who qualified for the New York Marathon through the NYRR 9+1 program - I want to run the NYC Marathon too! I live in Midtown. As a beginner, I can only run twice a week now, about 3-5K each time. I hope to get more guidance from experienced runners in the group to improve faster. Also, my family is worried about knee problems from running too much, so I'd like to consult experienced runners about injury-free running. I haven't participated in any races yet, but plan to register for NYRR's Team Championships 5-mile next month. My fastest 5K is 33 minutes, which is slow but much better than when I started. I'm really excited to find this group and hope to have fun together!
           </Typography>
           <Typography paragraph sx={{ color: 'text.secondary' }}>
             (2) 我是芒果，来纽约十年了，但最近才开始跑步，主要原因是受朋友参加NYRR 9+1项目得到参加纽约马拉松资格的事例的感染，我也想跑纽马！我住在Midtown。由于刚开始跑步，现在每周只能跑两次，每次大概3-5公里，希望进群之后能得到更多前辈的指点，让我能进步更快，而且我的家人比较担心我跑多了膝盖出问题，所以我也想多咨询前辈们如何能无伤跑步。我目前没有参加过任何比赛，但计划报名NYRR下个月的Team Championships 5mile；我跑过的5公里最快能跑到33分钟，很龟速，但已经比一开始进步很多了；找到组织真的很开心，好激动，希望可以一起愉快地玩耍～
@@ -339,8 +445,8 @@ export default function JoinPage() {
           color="primary"
           onClick={() => setOpenDialog(true)}
           disabled={!hasScrolledToBottom}
-          sx={{ 
-            backgroundColor: '#FFA500', 
+          sx={{
+            backgroundColor: '#FFA500',
             '&:hover': { backgroundColor: '#FF8C00' },
             '&.Mui-disabled': {
               backgroundColor: 'rgba(255, 165, 0, 0.3)',
@@ -356,15 +462,52 @@ export default function JoinPage() {
     </Box>
   );
 
+  const renderSuccessMessage = () => (
+    <Box sx={{ textAlign: 'center', py: 6 }}>
+      <CheckCircleIcon sx={{ fontSize: 80, color: '#4CAF50', mb: 3 }} />
+      <Typography variant="h4" gutterBottom sx={{ color: '#4CAF50' }}>
+        Application Submitted!
+      </Typography>
+      <Typography variant="h5" gutterBottom sx={{ color: '#4CAF50' }}>
+        申请已提交！
+      </Typography>
+      <Typography variant="body1" sx={{ mt: 3, mb: 2 }}>
+        Thank you for your interest in NewBee Running Club! Your application has been received.
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+        感谢您对新蜂跑团的关注！您的申请已收到。
+      </Typography>
+      <Typography variant="body2" sx={{ mb: 1 }}>
+        You will receive a confirmation email shortly at: <strong>{formData.email}</strong>
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+        您将很快收到确认邮件至: <strong>{formData.email}</strong>
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Our team will review your application and get back to you within 1-3 business days.
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+        我们的团队将审核您的申请，并在1-3个工作日内回复您。
+      </Typography>
+      <Button
+        variant="outlined"
+        onClick={handleStartOver}
+        sx={{
+          color: '#FFA500',
+          borderColor: '#FFA500',
+          '&:hover': {
+            borderColor: '#FF8C00',
+            backgroundColor: 'rgba(255, 165, 0, 0.1)',
+          },
+        }}
+      >
+        Submit Another Application / 提交另一份申请
+      </Button>
+    </Box>
+  );
+
   const renderQuestionnaire = () => (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
-      {submitSuccess && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          Application submitted successfully! You will receive a confirmation email shortly.
-          <br />
-          申请提交成功！您将很快收到确认邮件。
-        </Alert>
-      )}
       {submitError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {submitError}
@@ -378,7 +521,7 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
       />
       <TextField
         fullWidth
@@ -389,7 +532,7 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
       />
       <TextField
         fullWidth
@@ -398,7 +541,7 @@ export default function JoinPage() {
         value={formData.nyrr_id}
         onChange={handleFormChange}
         margin="normal"
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
         helperText="You can find your NYRR ID on the NYRR website 您可以在NYRR网站上找到您的ID"
       />
       <TextField
@@ -411,18 +554,40 @@ export default function JoinPage() {
         required
         multiline
         rows={2}
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
       />
-      <TextField
-        fullWidth
-        label="Running Location 跑步地点"
-        name="location"
-        value={formData.location}
-        onChange={handleFormChange}
-        margin="normal"
-        required
-        disabled={submitting || submitSuccess}
-      />
+
+      {/* Location Dropdown */}
+      <FormControl fullWidth margin="normal" required>
+        <InputLabel>Running Location 跑步地点</InputLabel>
+        <Select
+          value={locationSelect}
+          onChange={handleLocationSelectChange}
+          label="Running Location 跑步地点"
+          disabled={submitting}
+        >
+          {locationOptions.map((option) => (
+            <MenuItem key={option.value} value={option.value}>
+              {option.label}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      {/* Other Location Text Field */}
+      {showOtherLocation && (
+        <TextField
+          fullWidth
+          label="Please specify your location 请说明您的位置"
+          name="location"
+          value={formData.location}
+          onChange={handleFormChange}
+          margin="normal"
+          required
+          disabled={submitting}
+        />
+      )}
+
       <TextField
         fullWidth
         label="Weekly Running Frequency 每周跑步频次"
@@ -431,7 +596,7 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
       />
       <TextField
         fullWidth
@@ -441,7 +606,7 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
       />
       <TextField
         fullWidth
@@ -452,7 +617,7 @@ export default function JoinPage() {
         margin="normal"
         multiline
         rows={3}
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
       />
       <TextField
         fullWidth
@@ -464,7 +629,7 @@ export default function JoinPage() {
         required
         multiline
         rows={2}
-        disabled={submitting || submitSuccess}
+        disabled={submitting}
       />
       <TextField
         fullWidth
@@ -475,15 +640,23 @@ export default function JoinPage() {
         margin="normal"
         required
         multiline
-        rows={4}
-        disabled={submitting || submitSuccess}
+        rows={6}
+        disabled={submitting}
+        error={!introValidation.valid && formData.introduction.length > 0}
+        helperText={
+          formData.introduction.length > 0
+            ? (introValidation.valid
+                ? `Valid! ${introValidation.type === 'chinese' ? `${introValidation.count} Chinese characters` : `${introValidation.count} English words`} / 有效！${introValidation.type === 'chinese' ? `${introValidation.count} 个中文字符` : `${introValidation.count} 个英文单词`}`
+                : introValidation.message)
+            : 'Minimum 120 English words OR 480 Chinese characters required. / 至少需要120个英文单词或480个中文字符。'
+        }
       />
       <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
         <Button
           variant="contained"
           color="primary"
           type="submit"
-          disabled={submitting || submitSuccess}
+          disabled={submitting || !introValidation.valid}
           sx={{
             backgroundColor: '#FFA500',
             '&:hover': { backgroundColor: '#FF8C00' },
@@ -503,7 +676,7 @@ export default function JoinPage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
       <Logo />
       <NavigationButtons />
-      
+
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
         <Typography
           variant="h4"
@@ -517,9 +690,9 @@ export default function JoinPage() {
           加入新蜂跑团
         </Typography>
 
-        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-          {steps.map((label) => (
-            <Step key={label}>
+        <Stepper activeStep={submitSuccess ? 2 : activeStep} sx={{ mb: 4 }}>
+          {steps.map((label, index) => (
+            <Step key={label} completed={submitSuccess || index < activeStep}>
               <StepLabel>{label}</StepLabel>
             </Step>
           ))}
@@ -532,7 +705,9 @@ export default function JoinPage() {
             </>
           )}
 
-          {activeStep === 1 && renderQuestionnaire()}
+          {activeStep === 1 && !submitSuccess && renderQuestionnaire()}
+
+          {submitSuccess && renderSuccessMessage()}
         </Paper>
       </Container>
 
@@ -555,4 +730,4 @@ export default function JoinPage() {
       </Dialog>
     </Box>
   );
-} 
+}

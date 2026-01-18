@@ -1,6 +1,7 @@
 import {
   Alert,
   Avatar,
+  Badge,
   Box,
   Button,
   Card,
@@ -24,6 +25,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography
 } from '@mui/material';
 import {
@@ -31,12 +33,17 @@ import {
   EmojiEvents as TrophyIcon,
   DirectionsRun as RunIcon,
   Timer as TimerIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  CameraAlt as CameraIcon,
+  LocationOn as LocationIcon,
+  Stars as StarsIcon
 } from '@mui/icons-material';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context';
 import { logout } from '../firebase/auth';
+import { storage } from '../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getMemberByFirebaseUid, updateMember } from '../api/members';
 import { getMemberRaceResults } from '../api/results';
 
@@ -45,6 +52,7 @@ const ProfilePage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   // Member data state
   const [memberData, setMemberData] = useState(null);
@@ -53,6 +61,9 @@ const ProfilePage = () => {
   // Race results state
   const [raceData, setRaceData] = useState({ results: [], stats: { total_races: 0, prs: {}, recent_results: [] } });
   const [loadingRaces, setLoadingRaces] = useState(false);
+
+  // Photo upload state
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -110,6 +121,63 @@ const ProfilePage = () => {
     }
   };
 
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file. / 请选择图片文件。');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB. / 图片大小不能超过5MB。');
+      return;
+    }
+
+    if (!memberData?.id) {
+      setError('Cannot upload photo: Member not found in database. / 无法上传照片：数据库中找不到会员。');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    setError('');
+
+    try {
+      // Create storage reference
+      const timestamp = Date.now();
+      const fileName = `${timestamp}_${file.name}`;
+      const storageRef = ref(storage, `profile-photos/${currentUser.uid}/${fileName}`);
+
+      // Upload file
+      await uploadBytes(storageRef, file);
+
+      // Get download URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Update member with new photo URL
+      await updateMember(memberData.id, { profile_photo_url: downloadURL });
+
+      setSuccess('Profile photo updated! / 头像更新成功！');
+      fetchMemberData(); // Refresh data
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      setError('Failed to upload photo. Please try again. / 上传失败，请重试。');
+    } finally {
+      setUploadingPhoto(false);
+      // Clear the input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleOpenEditDialog = () => {
     setEditFormData({
       display_name: memberData?.display_name || currentUser?.displayName || '',
@@ -118,7 +186,12 @@ const ProfilePage = () => {
       phone: memberData?.phone || '',
       nyrr_member_id: memberData?.nyrr_member_id || '',
       emergency_contact_name: memberData?.emergency_contact_name || '',
-      emergency_contact_phone: memberData?.emergency_contact_phone || ''
+      emergency_contact_phone: memberData?.emergency_contact_phone || '',
+      location: memberData?.location || '',
+      weekly_frequency: memberData?.weekly_frequency || '',
+      monthly_mileage: memberData?.monthly_mileage || '',
+      running_experience: memberData?.running_experience || '',
+      goals: memberData?.goals || ''
     });
     setEditDialogOpen(true);
   };
@@ -164,15 +237,53 @@ const ProfilePage = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      {/* Hidden file input for photo upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handlePhotoUpload}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
+
       {/* Header Section */}
       <Paper elevation={3} sx={{ p: 4, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <Avatar
-              src={memberData?.profile_photo_url || currentUser?.photoURL}
-              alt={displayName}
-              sx={{ width: 100, height: 100 }}
-            />
+            <Tooltip title="Click to change photo / 点击更换头像">
+              <Badge
+                overlap="circular"
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                badgeContent={
+                  <IconButton
+                    size="small"
+                    onClick={handlePhotoClick}
+                    disabled={uploadingPhoto}
+                    sx={{
+                      backgroundColor: '#FFB84D',
+                      color: 'white',
+                      width: 32,
+                      height: 32,
+                      '&:hover': { backgroundColor: '#FFA833' }
+                    }}
+                  >
+                    {uploadingPhoto ? <CircularProgress size={16} color="inherit" /> : <CameraIcon fontSize="small" />}
+                  </IconButton>
+                }
+              >
+                <Avatar
+                  src={memberData?.profile_photo_url || currentUser?.photoURL}
+                  alt={displayName}
+                  sx={{
+                    width: 100,
+                    height: 100,
+                    cursor: 'pointer',
+                    '&:hover': { opacity: 0.8 }
+                  }}
+                  onClick={handlePhotoClick}
+                />
+              </Badge>
+            </Tooltip>
             <Box>
               <Typography variant="h4" component="h1">
                 {displayName}
@@ -262,6 +373,84 @@ const ProfilePage = () => {
           </Box>
         )}
       </Paper>
+
+      {/* Running Profile Section */}
+      {memberData && (memberData.location || memberData.weekly_frequency || memberData.monthly_mileage || memberData.running_experience || memberData.goals) && (
+        <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LocationIcon color="primary" /> Running Profile / 跑步档案
+          </Typography>
+          <Grid container spacing={2}>
+            {memberData.location && (
+              <Grid item xs={12} sm={6} md={4}>
+                <Typography variant="caption" color="text.secondary">Location / 地点</Typography>
+                <Typography variant="body1">{memberData.location}</Typography>
+              </Grid>
+            )}
+            {memberData.weekly_frequency && (
+              <Grid item xs={12} sm={6} md={4}>
+                <Typography variant="caption" color="text.secondary">Weekly Frequency / 每周跑步频次</Typography>
+                <Typography variant="body1">{memberData.weekly_frequency}</Typography>
+              </Grid>
+            )}
+            {memberData.monthly_mileage && (
+              <Grid item xs={12} sm={6} md={4}>
+                <Typography variant="caption" color="text.secondary">Monthly Mileage / 月跑量</Typography>
+                <Typography variant="body1">{memberData.monthly_mileage}</Typography>
+              </Grid>
+            )}
+            {memberData.running_experience && (
+              <Grid item xs={12}>
+                <Typography variant="caption" color="text.secondary">Running Experience / 跑步经历</Typography>
+                <Typography variant="body1">{memberData.running_experience}</Typography>
+              </Grid>
+            )}
+            {memberData.goals && (
+              <Grid item xs={12}>
+                <Typography variant="caption" color="text.secondary">Goals / 目标</Typography>
+                <Typography variant="body1">{memberData.goals}</Typography>
+              </Grid>
+            )}
+          </Grid>
+        </Paper>
+      )}
+
+      {/* Club Credits Section */}
+      {memberData && (
+        <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <StarsIcon sx={{ color: '#FFB84D' }} /> Club Credits / 俱乐部积分
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} sm={3}>
+              <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
+                <Typography variant="h4" color="primary">{memberData.registration_credits || 0}</Typography>
+                <Typography variant="body2" color="text.secondary">Registration / 比赛积分</Typography>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
+                <Typography variant="h4" color="primary">{memberData.checkin_credits || 0}</Typography>
+                <Typography variant="body2" color="text.secondary">Check-in / 签到积分</Typography>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
+                <Typography variant="h4" color="primary">{memberData.volunteer_credits || 0}</Typography>
+                <Typography variant="body2" color="text.secondary">Volunteer / 志愿者积分</Typography>
+              </Card>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
+                <Typography variant="h4" sx={{ color: '#FFB84D' }}>
+                  {(memberData.registration_credits || 0) + (memberData.checkin_credits || 0) + (memberData.volunteer_credits || 0)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Total / 总积分</Typography>
+              </Card>
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
 
       {/* Race Statistics Section */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -390,7 +579,7 @@ const ProfilePage = () => {
       </Paper>
 
       {/* Edit Profile Dialog */}
-      <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
+      <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           Edit Profile / 编辑资料
           <IconButton
@@ -402,6 +591,11 @@ const ProfilePage = () => {
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0 }}>
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
+                Basic Information / 基本信息
+              </Typography>
+            </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -444,9 +638,10 @@ const ProfilePage = () => {
                 helperText="Your NYRR account ID for race results"
               />
             </Grid>
+
             <Grid item xs={12}>
               <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1, mt: 2 }}>
                 Emergency Contact / 紧急联系人
               </Typography>
             </Grid>
@@ -464,6 +659,60 @@ const ProfilePage = () => {
                 label="Contact Phone / 联系人电话"
                 value={editFormData.emergency_contact_phone || ''}
                 onChange={handleEditFormChange('emergency_contact_phone')}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1, mt: 2 }}>
+                Running Profile / 跑步档案
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Location / 跑步地点"
+                value={editFormData.location || ''}
+                onChange={handleEditFormChange('location')}
+                helperText="Where do you usually run? / 你通常在哪里跑步？"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Weekly Frequency / 每周跑步频次"
+                value={editFormData.weekly_frequency || ''}
+                onChange={handleEditFormChange('weekly_frequency')}
+                helperText="e.g., 3-4 times per week / 例如：每周3-4次"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Monthly Mileage / 月跑量"
+                value={editFormData.monthly_mileage || ''}
+                onChange={handleEditFormChange('monthly_mileage')}
+                helperText="e.g., 100 miles / 例如：100英里"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="Running Experience / 跑步经历"
+                value={editFormData.running_experience || ''}
+                onChange={handleEditFormChange('running_experience')}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="Goals / 跑步目标"
+                value={editFormData.goals || ''}
+                onChange={handleEditFormChange('goals')}
               />
             </Grid>
           </Grid>
@@ -489,4 +738,4 @@ const ProfilePage = () => {
   );
 };
 
-export default ProfilePage; 
+export default ProfilePage;
