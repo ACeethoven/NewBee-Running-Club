@@ -1,10 +1,10 @@
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Accordion, AccordionDetails, AccordionSummary, Box, Container, Modal, Typography } from '@mui/material';
-import { marked } from 'marked';
+import { safeMarkdown } from '../utils/markdown';
 import { useEffect, useState } from 'react';
 import { getMeetingContent, getMeetingFiles } from '../api/meetings';
 import Logo from '../components/Logo';
-import PageButtons from '../components/PageButtons';
+import NavigationButtons from '../components/NavigationButtons';
 import CommitteeMemberCard from '../components/CommitteeMemberCard';
 import { committeeMembers } from '../data/committeeMembers';
 
@@ -100,7 +100,7 @@ export default function AboutPage() {
       <Logo />
       
       {/* Navigation Buttons */}
-      <PageButtons />
+      <NavigationButtons />
 
       {/* Latest News Text */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
@@ -169,9 +169,9 @@ export default function AboutPage() {
                   </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  <div 
-                    dangerouslySetInnerHTML={{ 
-                      __html: marked(meeting.content, { breaks: true }) 
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: safeMarkdown(meeting.content)
                     }}
                     style={{
                       '& h1': {
@@ -318,9 +318,9 @@ export default function AboutPage() {
                 Loading...
               </Typography>
             ) : (
-              <div 
-                dangerouslySetInnerHTML={{ 
-                  __html: marked(electionStandards, { breaks: true }) 
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: safeMarkdown(electionStandards)
                 }}
                 style={{
                   '& h1': {

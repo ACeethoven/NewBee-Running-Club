@@ -1,7 +1,7 @@
 import { Box, Button, Container, FormControl, FormHelperText, InputLabel, MenuItem, Select, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
 import Logo from '../components/Logo';
-import PageButtons from '../components/PageButtons';
+import NavigationButtons from '../components/NavigationButtons';
 
 const steps = ['Introduction', 'Race Information', 'Current Fitness', 'Training Duration'];
 
@@ -230,7 +230,7 @@ export default function TrainingPage() {
       <Logo />
       
       {/* Navigation Buttons */}
-      <PageButtons />
+      <NavigationButtons />
       
       {/* Training Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>

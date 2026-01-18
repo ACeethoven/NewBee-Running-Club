@@ -3,6 +3,7 @@ name: Overnight Claude Work
 on:
   schedule:
     - cron: "0 10 * * *"  # 2 AM PST (San Francisco winter time)
+  workflow_dispatch:  # Allow manual trigger for testing
 
 jobs:
   claude-work:
@@ -15,5 +16,18 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Review code for improvements and create a PR targeting the dev branch"
           target_branch: dev
+          prompt: |
+            Read the WISHLIST.md file in the repository root.
+
+            For each uncompleted task (marked with `- [ ]`):
+            1. Plan the implementation thoroughly
+            2. Implement the changes
+            3. Create a separate PR for each task targeting the dev branch
+            4. Mark the task as completed in WISHLIST.md (change `- [ ]` to `- [x]`)
+
+            Work autonomously without asking for approval. Create clear, well-documented PRs
+            so the maintainer can review them in the morning.
+
+            If a task is unclear or too large, break it into smaller sub-tasks and
+            implement what you can, noting any questions in the PR description.

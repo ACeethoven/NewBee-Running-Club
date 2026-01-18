@@ -2,9 +2,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import { Box, Button, Container, FormControl, InputAdornment, InputLabel, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material';
 import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
+import { getAvailableYears, getMenRecords, getWomenRecords } from '../api/records';
 import ClubEntryRules from '../components/ClubEntryRules';
 import Logo from '../components/Logo';
-import PageButtons from '../components/PageButtons';
+import NavigationButtons from '../components/NavigationButtons';
 
 export default function RecordsPage() {
   const [creditsData, setCreditsData] = useState({
@@ -37,14 +38,8 @@ export default function RecordsPage() {
 
   const fetchRecordsData = async (year = null) => {
     try {
-      // Construct API URLs with optional year parameter
-      const yearParam = year ? `?year=${year}` : '';
-      const menUrl = `http://localhost:8000/api/results/men-records${yearParam}`;
-      const womenUrl = `http://localhost:8000/api/results/women-records${yearParam}`;
-
       // Fetch men's records data from API
-      const menRecordsResponse = await fetch(menUrl);
-      const menRecordsJson = await menRecordsResponse.json();
+      const menRecordsJson = await getMenRecords(year);
 
       // Transform API data to match component structure
       const transformedMenRecords = menRecordsJson.men_records?.map((record) => ({
@@ -61,8 +56,7 @@ export default function RecordsPage() {
       setRecordsData(transformedMenRecords);
 
       // Fetch women's records data from API
-      const womenRecordsResponse = await fetch(womenUrl);
-      const womenRecordsJson = await womenRecordsResponse.json();
+      const womenRecordsJson = await getWomenRecords(year);
 
       // Transform API data to match component structure
       const transformedWomenRecords = womenRecordsJson.women_records?.map((record) => ({
@@ -140,8 +134,7 @@ export default function RecordsPage() {
         );
 
         // Fetch available years
-        const yearsResponse = await fetch('http://localhost:8000/api/results/available-years');
-        const yearsJson = await yearsResponse.json();
+        const yearsJson = await getAvailableYears();
         setAvailableYears(yearsJson.years || []);
 
         // Fetch records data (initially without year filter)
@@ -246,7 +239,7 @@ export default function RecordsPage() {
       <Logo />
       
       {/* Navigation Buttons */}
-      <PageButtons />
+      <NavigationButtons />
       
       {/* Records Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>

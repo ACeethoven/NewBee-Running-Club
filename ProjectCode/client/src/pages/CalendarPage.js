@@ -3,7 +3,7 @@ import { Box, Button, Card, CardContent, CardMedia, Container, Grid, IconButton,
 import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
 import Logo from '../components/Logo';
-import PageButtons from '../components/PageButtons';
+import NavigationButtons from '../components/NavigationButtons';
 
 export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -143,7 +143,7 @@ export default function CalendarPage() {
       <Logo />
       
       {/* Navigation Buttons */}
-      <PageButtons />
+      <NavigationButtons />
       
       {/* Featured Events Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
