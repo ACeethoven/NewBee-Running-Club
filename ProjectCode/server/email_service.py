@@ -3,6 +3,8 @@ Email service for sending notifications using Gmail SMTP
 """
 import os
 import smtplib
+import logging
+import traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
@@ -10,11 +12,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 # Gmail SMTP Configuration
 GMAIL_USER = os.getenv("GMAIL_USER", "newbeerunningclub@gmail.com")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+
+# Log configuration status on module load
+if GMAIL_APP_PASSWORD:
+    logger.info(f"[EMAIL] Email service configured with user: {GMAIL_USER}")
+else:
+    logger.warning("[EMAIL] GMAIL_APP_PASSWORD not set - emails will be disabled")
+    logger.warning("[EMAIL] To enable emails, add GMAIL_APP_PASSWORD to server/.env")
 
 
 class EmailService:
@@ -40,8 +52,14 @@ class EmailService:
             True if email sent successfully, False otherwise
         """
         if not GMAIL_APP_PASSWORD:
-            print("WARNING: GMAIL_APP_PASSWORD not configured. Email not sent.")
+            logger.warning(f"[EMAIL] Skipping email to {to_email} - GMAIL_APP_PASSWORD not configured")
+            logger.debug(f"[EMAIL] Would have sent: subject='{subject}'")
             return False
+
+        logger.info(f"[EMAIL] Attempting to send email to {to_email}")
+        logger.debug(f"[EMAIL] Subject: {subject}")
+        logger.debug(f"[EMAIL] From: {GMAIL_USER}")
+        logger.debug(f"[EMAIL] SMTP: {SMTP_SERVER}:{SMTP_PORT}")
 
         try:
             # Create message
@@ -54,21 +72,40 @@ class EmailService:
             if body_text:
                 part1 = MIMEText(body_text, 'plain')
                 msg.attach(part1)
+                logger.debug("[EMAIL] Attached plain text body")
 
             part2 = MIMEText(body_html, 'html')
             msg.attach(part2)
+            logger.debug("[EMAIL] Attached HTML body")
 
             # Send email
+            logger.debug(f"[EMAIL] Connecting to SMTP server {SMTP_SERVER}:{SMTP_PORT}...")
             with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                logger.debug("[EMAIL] Starting TLS...")
                 server.starttls()
+                logger.debug(f"[EMAIL] Logging in as {GMAIL_USER}...")
                 server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+                logger.debug("[EMAIL] Sending message...")
                 server.send_message(msg)
 
-            print(f"Email sent successfully to {to_email}")
+            logger.info(f"[EMAIL] Successfully sent email to {to_email}")
             return True
 
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"[EMAIL] Authentication failed for {GMAIL_USER}")
+            logger.error(f"[EMAIL] Check GMAIL_APP_PASSWORD is correct (should be 16-char app password)")
+            logger.error(f"[EMAIL] Error: {str(e)}")
+            logger.debug(f"[EMAIL] Traceback:\n{traceback.format_exc()}")
+            return False
+
+        except smtplib.SMTPException as e:
+            logger.error(f"[EMAIL] SMTP error sending to {to_email}: {str(e)}")
+            logger.debug(f"[EMAIL] Traceback:\n{traceback.format_exc()}")
+            return False
+
         except Exception as e:
-            print(f"Error sending email to {to_email}: {str(e)}")
+            logger.error(f"[EMAIL] Unexpected error sending to {to_email}: {str(e)}")
+            logger.debug(f"[EMAIL] Traceback:\n{traceback.format_exc()}")
             return False
 
     @staticmethod
@@ -128,6 +165,7 @@ class EmailService:
         newbeerunningclub.org
         """
 
+        logger.info(f"[EMAIL] Sending join confirmation to {applicant_email} ({applicant_name})")
         return EmailService.send_email(applicant_email, subject, body_html, body_text)
 
     @staticmethod
@@ -202,6 +240,7 @@ class EmailService:
         Please review this application in the admin panel at https://newbeerunningclub.org/admin
         """
 
+        logger.info(f"[EMAIL] Sending committee notification for applicant: {applicant_name} ({applicant_email})")
         return EmailService.send_email(GMAIL_USER, subject, body_html, body_text)
 
     @staticmethod
@@ -275,4 +314,5 @@ class EmailService:
         newbeerunningclub.org
         """
 
+        logger.info(f"[EMAIL] Sending approval notification to {member_email} ({member_name})")
         return EmailService.send_email(member_email, subject, body_html, body_text)
