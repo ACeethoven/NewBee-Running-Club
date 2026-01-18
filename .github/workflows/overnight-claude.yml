@@ -5,6 +5,12 @@ on:
     - cron: "0 10 * * *"  # 2 AM PST (San Francisco winter time)
   workflow_dispatch:  # Allow manual trigger for testing
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
 jobs:
   claude-work:
     runs-on: ubuntu-latest
@@ -16,7 +22,8 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          target_branch: dev
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          base_branch: dev
           prompt: |
             Read the WISHLIST.md file in the repository root.
 
