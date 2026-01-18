@@ -1,0 +1,74 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to EC2
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            echo "========================================="
+            echo "Starting deployment..."
+            echo "========================================="
+
+            cd /var/www/newbeerunning/NewBee-Running-Club
+
+            # Pull latest code
+            git fetch origin prod
+            git checkout prod
+            git pull origin prod
+
+            # Build frontend
+            echo "Building frontend..."
+            cd ProjectCode/client
+            npm ci
+            npm run build
+
+            # Deploy frontend
+            echo "Deploying frontend..."
+            sudo rm -rf /var/www/newbeerunning/frontend/*
+            sudo cp -r build/* /var/www/newbeerunning/frontend/
+
+            # Update backend
+            echo "Updating backend..."
+            cd ../server
+            rsync -av --exclude='venv' --exclude='__pycache__' --exclude='.env' . /var/www/newbeerunning/backend/
+            /var/www/newbeerunning/backend/venv/bin/pip install -r requirements.txt
+
+            # Restart backend service
+            echo "Restarting services..."
+            sudo systemctl restart newbeerunning-api
+
+            echo "========================================="
+            echo "Deployment complete!"
+            echo "========================================="
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Check services are running
+            sudo systemctl is-active newbeerunning-api
+            sudo systemctl is-active nginx
+
+            # Test API endpoint
+            curl -s http://localhost:8000/ | grep -q "running"
+            echo "API health check passed!"
