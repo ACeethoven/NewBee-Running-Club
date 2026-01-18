@@ -75,6 +75,14 @@ class MemberBase(BaseModel):
     emergency_contact_phone: Optional[str] = Field(None, max_length=20)
     show_in_credits: bool = Field(default=True)
     show_in_donors: bool = Field(default=True)
+    # Application form data
+    running_experience: Optional[str] = None
+    running_location: Optional[str] = Field(None, max_length=255)
+    weekly_frequency: Optional[str] = Field(None, max_length=100)
+    monthly_mileage: Optional[str] = Field(None, max_length=100)
+    race_experience: Optional[str] = None
+    running_goals: Optional[str] = None
+    introduction: Optional[str] = None
 
 
 class MemberCreate(MemberBase):
@@ -101,6 +109,14 @@ class MemberUpdate(BaseModel):
     emergency_contact_phone: Optional[str] = Field(None, max_length=20)
     show_in_credits: Optional[bool] = None
     show_in_donors: Optional[bool] = None
+    # Application form data
+    running_experience: Optional[str] = None
+    running_location: Optional[str] = Field(None, max_length=255)
+    weekly_frequency: Optional[str] = Field(None, max_length=100)
+    monthly_mileage: Optional[str] = Field(None, max_length=100)
+    race_experience: Optional[str] = None
+    running_goals: Optional[str] = None
+    introduction: Optional[str] = None
 
 
 class MemberResponse(MemberBase):

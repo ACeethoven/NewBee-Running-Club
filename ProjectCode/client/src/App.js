@@ -17,7 +17,6 @@ import ProfilePage from "./pages/ProfilePage";
 import RecordsPage from "./pages/RecordsPage";
 import RegisterPage from "./pages/RegisterPage";
 import SponsorsPage from "./pages/SponsorsPage";
-import StatsPage from './pages/StatsPage';
 import TrainingPage from "./pages/TrainingPage";
 
 // Create the theme
@@ -61,7 +60,6 @@ export default function App() {
                 <Route path="/records" element={<RecordsPage />} />
                 <Route path="/join" element={<JoinPage />} />
                 <Route path="/sponsors" element={<SponsorsPage />} />
-                <Route path="/dashboard" element={<StatsPage />} />
                 {/* Auth Routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />

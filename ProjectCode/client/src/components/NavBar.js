@@ -65,28 +65,6 @@ export default function NavBar() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Button
                 component={NavLink}
-                to="/dashboard"
-                sx={{
-                  color: 'white',
-                  textTransform: 'none',
-                  fontSize: '0.9rem',
-                  minWidth: 'auto',
-                  px: 3,
-                  py: 1,
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  transition: 'all 0.2s ease',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    border: '1px solid rgba(255, 255, 255, 0.4)',
-                  }
-                }}
-              >
-                Dashboard
-              </Button>
-              <Button
-                component={NavLink}
                 to="/profile"
                 sx={{
                   color: 'white',

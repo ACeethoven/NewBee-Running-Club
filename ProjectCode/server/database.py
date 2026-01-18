@@ -147,6 +147,15 @@ class Member(Base):
     emergency_contact_name = Column(String(100))
     emergency_contact_phone = Column(String(20))
 
+    # Application Data (from join form)
+    running_experience = Column(Text)
+    running_location = Column(String(255))
+    weekly_frequency = Column(String(100))
+    monthly_mileage = Column(String(100))
+    race_experience = Column(Text)
+    running_goals = Column(Text)
+    introduction = Column(Text)
+
     # Privacy Settings (kill switches)
     show_in_credits = Column(Boolean, default=True)  # Show in club credit pages
     show_in_donors = Column(Boolean, default=True)   # Show in donor pages

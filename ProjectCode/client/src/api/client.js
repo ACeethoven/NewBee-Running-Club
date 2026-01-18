@@ -26,12 +26,14 @@ export class ApiError extends Error {
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  const { headers: optionHeaders, ...restOptions } = options;
+
   const config = {
+    ...restOptions,
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...optionHeaders,
     },
-    ...options,
   };
 
   try {

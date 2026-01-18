@@ -192,6 +192,70 @@ def get_all_races(db: Session = Depends(get_db)):
         ]
     }
 
+
+@app.get("/api/results/member/{search_key}")
+def get_member_race_results(search_key: str, db: Session = Depends(get_db)):
+    """
+    Get race results for a specific member by name or NYRR ID.
+    Returns all results matching the search key along with statistics.
+    """
+    # Search by name (case-insensitive partial match)
+    results = db.query(Results).filter(
+        Results.name.ilike(f"%{search_key}%")
+    ).order_by(Results.race_time.desc()).all()
+
+    if not results:
+        return {
+            "results": [],
+            "stats": {
+                "total_races": 0,
+                "prs": {},
+                "recent_results": []
+            }
+        }
+
+    # Calculate PRs by distance
+    prs = {}
+    for result in results:
+        distance = result.race_distance
+        if distance and result.overall_time:
+            if distance not in prs or result.overall_time < prs[distance]["time"]:
+                prs[distance] = {
+                    "time": result.overall_time,
+                    "race": result.race,
+                    "date": result.race_time.strftime('%Y-%m-%d') if result.race_time else None,
+                    "pace": result.pace
+                }
+
+    # Format results
+    formatted_results = [
+        {
+            "id": r.id,
+            "race": r.race,
+            "race_date": r.race_time.strftime('%Y-%m-%d') if r.race_time else None,
+            "distance": r.race_distance,
+            "overall_time": r.overall_time,
+            "pace": r.pace,
+            "overall_place": r.overall_place,
+            "gender_place": r.gender_place,
+            "age_group_place": r.age_group_place,
+            "gender_age": r.gender_age,
+            "age_graded_time": r.age_graded_time,
+            "age_graded_percent": float(r.age_graded_percent) if r.age_graded_percent else None
+        }
+        for r in results
+    ]
+
+    return {
+        "results": formatted_results,
+        "stats": {
+            "total_races": len(results),
+            "prs": prs,
+            "recent_results": formatted_results[:5]
+        }
+    }
+
+
 # Main endpoint for SponsorsPage - replaces CSV fetching
 @app.get("/api/donors", response_model=DonorsListResponse)
 def get_all_donors(db: Session = Depends(get_db)):
@@ -640,7 +704,15 @@ def submit_join_application(application: JoinApplicationRequest, db: Session = D
         password_hash=placeholder_hash,
         display_name=application.name,
         nyrr_member_id=application.nyrr_id,
-        status='pending'
+        status='pending',
+        # Application form data
+        running_experience=application.running_experience,
+        running_location=application.location,
+        weekly_frequency=application.weekly_frequency,
+        monthly_mileage=application.monthly_mileage,
+        race_experience=application.race_experience,
+        running_goals=application.goals,
+        introduction=application.introduction
     )
 
     db.add(new_member)
