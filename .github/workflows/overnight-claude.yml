@@ -26,6 +26,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           base_branch: dev
+          model: claude-opus-4-5-20251101
           claude_args: |
             --allowedTools "Edit,Write,Bash(git checkout -b *),Bash(git add *),Bash(git commit *),Bash(git push *),Bash(pip install *),Bash(python *)"
           prompt: |
