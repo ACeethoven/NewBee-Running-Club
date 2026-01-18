@@ -32,7 +32,7 @@ jobs:
           prompt: |
             IMPORTANT: This project has a React frontend (client/) and Python/FastAPI backend (server/).
             There is NO package.json in the server directory - it uses requirements.txt for Python dependencies.
-            Read claude.md (lowercase) for full project context before starting any work.
+            Read CLAUDE.md for full project context before starting any work.
 
             Read the WISHLIST.md file in the repository root.
 
