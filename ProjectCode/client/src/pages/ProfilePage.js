@@ -422,30 +422,22 @@ const ProfilePage = () => {
             <StarsIcon sx={{ color: '#FFB84D' }} /> Club Credits / 俱乐部积分
           </Typography>
           <Grid container spacing={2}>
-            <Grid item xs={6} sm={3}>
+            <Grid item xs={12} sm={4}>
               <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
                 <Typography variant="h4" color="primary">{memberData.registration_credits || 0}</Typography>
                 <Typography variant="body2" color="text.secondary">Registration / 比赛积分</Typography>
               </Card>
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid item xs={12} sm={4}>
               <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
                 <Typography variant="h4" color="primary">{memberData.checkin_credits || 0}</Typography>
                 <Typography variant="body2" color="text.secondary">Check-in / 签到积分</Typography>
               </Card>
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid item xs={12} sm={4}>
               <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
                 <Typography variant="h4" color="primary">{memberData.volunteer_credits || 0}</Typography>
                 <Typography variant="body2" color="text.secondary">Volunteer / 志愿者积分</Typography>
-              </Card>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Card variant="outlined" sx={{ textAlign: 'center', p: 2 }}>
-                <Typography variant="h4" sx={{ color: '#FFB84D' }}>
-                  {(memberData.registration_credits || 0) + (memberData.checkin_credits || 0) + (memberData.volunteer_credits || 0)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">Total / 总积分</Typography>
               </Card>
             </Grid>
           </Grid>
