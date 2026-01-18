@@ -5,7 +5,9 @@
       "http://localhost:3001",
       "http://127.0.0.1:3000",
       "https://newbeerunningclub.org",
-      "https://www.newbeerunningclub.org"
+      "https://www.newbeerunningclub.org",
+      "https://newbeerunning.org",
+      "https://www.newbeerunning.org"
     ],
     "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
     "maxAgeSeconds": 3600,
