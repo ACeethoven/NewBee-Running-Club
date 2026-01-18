@@ -1,0 +1,16 @@
+# .github/workflows/overnight-claude.yml
+name: Overnight Claude Work
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 2 AM PST (San Francisco winter time)
+
+jobs:
+  claude-work:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: "Review code for improvements and create a PR"
