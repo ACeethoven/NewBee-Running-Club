@@ -1,7 +1,7 @@
 import { Box, Container, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import Logo from '../components/Logo';
-import MainPageButtons from '../components/MainPageButtons';
+import NavigationButtons from '../components/NavigationButtons';
 
 const masterImages = [
   {
@@ -38,7 +38,7 @@ export default function HomePage() {
       <Logo />
 
       {/* Buttons Section */}
-      <MainPageButtons />
+      <NavigationButtons variant="filled" />
 
       {/* Master Image Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 0 }}>

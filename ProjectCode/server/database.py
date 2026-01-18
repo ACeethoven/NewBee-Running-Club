@@ -1,5 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, Index, Time
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, Index, Time, Date, Enum
 from sqlalchemy.types import DECIMAL
+import enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
@@ -99,6 +100,68 @@ class Results(Base):
         Index('idx_overall_place', 'overall_place'),
         Index('idx_gender_age', 'gender_age'),
     )
+
+
+# Member status enum
+class MemberStatus(enum.Enum):
+    member = "member"
+    committee = "committee"
+    admin = "admin"
+    not_with_newbee_anymore = "not_with_newbee_anymore"
+
+
+# Member Model for club members
+class Member(Base):
+    __tablename__ = "members"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+
+    # Authentication
+    username = Column(String(50), nullable=False, unique=True)
+    email = Column(String(255), nullable=False, unique=True)
+    password_hash = Column(String(255), nullable=False)
+    firebase_uid = Column(String(128), unique=True)
+
+    # Status & Role
+    status = Column(String(30), nullable=False, default='member')
+    committee_position = Column(String(100))
+    committee_position_cn = Column(String(100))
+
+    # Profile
+    display_name = Column(String(100))
+    display_name_cn = Column(String(100))
+    phone = Column(String(20))
+    profile_photo_url = Column(String(500))
+
+    # Club Data
+    nyrr_member_id = Column(String(50))
+    join_date = Column(Date)
+
+    # Credits (for dashboard)
+    registration_credits = Column(DECIMAL(10, 2), default=0)
+    checkin_credits = Column(DECIMAL(10, 2), default=0)
+    volunteer_credits = Column(DECIMAL(10, 2), default=0)
+    activity_credits = Column(DECIMAL(10, 2), default=0)
+
+    # Emergency Contact
+    emergency_contact_name = Column(String(100))
+    emergency_contact_phone = Column(String(20))
+
+    # Privacy Settings (kill switches)
+    show_in_credits = Column(Boolean, default=True)  # Show in club credit pages
+    show_in_donors = Column(Boolean, default=True)   # Show in donor pages
+
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Indexes for better query performance
+    __table_args__ = (
+        Index('idx_member_status', 'status'),
+        Index('idx_member_nyrr_id', 'nyrr_member_id'),
+        Index('idx_member_email', 'email'),
+    )
+
 
 # Database dependency for FastAPI
 def get_db():

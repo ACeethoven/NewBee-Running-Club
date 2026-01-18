@@ -189,6 +189,46 @@ GitHub Actions:
 1. Backend API handles CRUD operations
 2. CSV files in `public/data/` serve as fallback/static data
 
+## Local Development Setup
+
+### Step 1: Configure Environment
+
+**Backend (`server/.env`)** - Ensure these are set:
+```
+USE_SQLITE=True
+DEBUG=True
+```
+
+**Frontend (`client/.env`)** - Ensure this is set:
+```
+REACT_APP_API_BASE_URL=http://localhost:8000
+```
+
+### Step 2: Start Servers
+
+**Backend:**
+```bash
+cd ProjectCode/server
+lsof -ti :8000 | xargs kill -9 2>/dev/null
+source venv/bin/activate
+python main.py
+```
+
+**Frontend (in a new terminal):**
+```bash
+cd ProjectCode/client
+lsof -ti :3000 | xargs kill -9 2>/dev/null
+npm start
+```
+
+### Servers
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+
 ## Notes
 
 - Bilingual UI: All major elements have English + Chinese labels
