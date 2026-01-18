@@ -5,8 +5,9 @@ import { createTheme } from "@mui/material/styles";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import NavBar from "./components/NavBar";
-import { AuthProvider } from "./context";
+import { AuthProvider, AdminProvider } from "./context";
 import AboutPage from "./pages/AboutPage";
+import AdminPanelPage from "./pages/AdminPanelPage";
 import CalendarPage from "./pages/CalendarPage";
 import HighlightsPage from "./pages/HighlightsPage";
 import HomePage from "./pages/HomePage";
@@ -16,7 +17,6 @@ import ProfilePage from "./pages/ProfilePage";
 import RecordsPage from "./pages/RecordsPage";
 import RegisterPage from "./pages/RegisterPage";
 import SponsorsPage from "./pages/SponsorsPage";
-import StatsPage from './pages/StatsPage';
 import TrainingPage from "./pages/TrainingPage";
 
 // Create the theme
@@ -32,7 +32,8 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <BrowserRouter>
+        <AdminProvider>
+          <BrowserRouter>
           <Box
             sx={{
               display: 'flex',
@@ -60,11 +61,11 @@ export default function App() {
                 <Route path="/records" element={<RecordsPage />} />
                 <Route path="/join" element={<JoinPage />} />
                 <Route path="/sponsors" element={<SponsorsPage />} />
-                <Route path="/dashboard" element={<StatsPage />} />
                 {/* Auth Routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/admin" element={<AdminPanelPage />} />
               </Routes>
             </Box>
 
@@ -114,7 +115,8 @@ export default function App() {
               </Container>
             </Box>
           </Box>
-        </BrowserRouter>
+          </BrowserRouter>
+        </AdminProvider>
       </AuthProvider>
     </ThemeProvider>
   );

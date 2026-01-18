@@ -52,17 +52,17 @@ class DonationSummary(BaseModel):
 
 # Member Status Enum
 class MemberStatus(str, Enum):
-    member = "member"
-    committee = "committee"
-    admin = "admin"
-    not_with_newbee_anymore = "not_with_newbee_anymore"
+    pending = "pending"  # New signups awaiting committee approval
+    runner = "runner"     # Approved regular members
+    admin = "admin"       # Admin and committee members with elevated privileges
+    quit = "quit"         # Members who left the club
 
 
 # Member Schemas
 class MemberBase(BaseModel):
     username: str = Field(..., max_length=50)
     email: str = Field(..., max_length=255)
-    status: MemberStatus = Field(default=MemberStatus.member)
+    status: MemberStatus = Field(default=MemberStatus.pending)
     committee_position: Optional[str] = Field(None, max_length=100)
     committee_position_cn: Optional[str] = Field(None, max_length=100)
     display_name: Optional[str] = Field(None, max_length=100)
@@ -75,6 +75,14 @@ class MemberBase(BaseModel):
     emergency_contact_phone: Optional[str] = Field(None, max_length=20)
     show_in_credits: bool = Field(default=True)
     show_in_donors: bool = Field(default=True)
+    # Application form data
+    running_experience: Optional[str] = None
+    running_location: Optional[str] = Field(None, max_length=255)
+    weekly_frequency: Optional[str] = Field(None, max_length=100)
+    monthly_mileage: Optional[str] = Field(None, max_length=100)
+    race_experience: Optional[str] = None
+    running_goals: Optional[str] = None
+    introduction: Optional[str] = None
 
 
 class MemberCreate(MemberBase):
@@ -101,6 +109,14 @@ class MemberUpdate(BaseModel):
     emergency_contact_phone: Optional[str] = Field(None, max_length=20)
     show_in_credits: Optional[bool] = None
     show_in_donors: Optional[bool] = None
+    # Application form data
+    running_experience: Optional[str] = None
+    running_location: Optional[str] = Field(None, max_length=255)
+    weekly_frequency: Optional[str] = Field(None, max_length=100)
+    monthly_mileage: Optional[str] = Field(None, max_length=100)
+    race_experience: Optional[str] = None
+    running_goals: Optional[str] = None
+    introduction: Optional[str] = None
 
 
 class MemberResponse(MemberBase):
@@ -142,3 +158,17 @@ class FirebaseUserSync(BaseModel):
     email: str = Field(..., max_length=255)
     display_name: Optional[str] = Field(None, max_length=100)
     photo_url: Optional[str] = Field(None, max_length=500)
+
+
+class JoinApplicationRequest(BaseModel):
+    """Join application form submission"""
+    name: str = Field(..., max_length=255)
+    email: str = Field(..., max_length=255)
+    nyrr_id: Optional[str] = Field(None, max_length=50)
+    running_experience: str
+    location: str
+    weekly_frequency: str
+    monthly_mileage: str
+    race_experience: Optional[str] = None
+    goals: str
+    introduction: str

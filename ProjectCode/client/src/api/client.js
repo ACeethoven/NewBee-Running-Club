@@ -26,12 +26,14 @@ export class ApiError extends Error {
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  const { headers: optionHeaders, ...restOptions } = options;
+
   const config = {
+    ...restOptions,
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...optionHeaders,
     },
-    ...options,
   };
 
   try {
@@ -74,24 +76,27 @@ export const api = {
    * GET request
    * @param {string} endpoint - API endpoint
    * @param {Object} params - Query parameters
+   * @param {Object} headers - Additional headers
    * @returns {Promise<any>}
    */
-  get: (endpoint, params = {}) => {
+  get: (endpoint, params = {}, headers = {}) => {
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-    return request(url, { method: 'GET' });
+    return request(url, { method: 'GET', headers });
   },
 
   /**
    * POST request
    * @param {string} endpoint - API endpoint
    * @param {Object} data - Request body
+   * @param {Object} headers - Additional headers
    * @returns {Promise<any>}
    */
-  post: (endpoint, data) => {
+  post: (endpoint, data, headers = {}) => {
     return request(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
+      headers,
     });
   },
 
@@ -99,22 +104,25 @@ export const api = {
    * PUT request
    * @param {string} endpoint - API endpoint
    * @param {Object} data - Request body
+   * @param {Object} headers - Additional headers
    * @returns {Promise<any>}
    */
-  put: (endpoint, data) => {
+  put: (endpoint, data, headers = {}) => {
     return request(endpoint, {
       method: 'PUT',
       body: JSON.stringify(data),
+      headers,
     });
   },
 
   /**
    * DELETE request
    * @param {string} endpoint - API endpoint
+   * @param {Object} headers - Additional headers
    * @returns {Promise<any>}
    */
-  delete: (endpoint) => {
-    return request(endpoint, { method: 'DELETE' });
+  delete: (endpoint, headers = {}) => {
+    return request(endpoint, { method: 'DELETE', headers });
   },
 };
 

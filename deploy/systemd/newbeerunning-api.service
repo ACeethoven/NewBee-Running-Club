@@ -1,0 +1,23 @@
+[Unit]
+Description=NewBee Running Club FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/newbeerunning/backend
+Environment="PATH=/var/www/newbeerunning/backend/venv/bin"
+EnvironmentFile=/var/www/newbeerunning/backend/.env
+ExecStart=/var/www/newbeerunning/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/newbeerunning/backend
+
+[Install]
+WantedBy=multi-user.target

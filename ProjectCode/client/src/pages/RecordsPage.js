@@ -1,13 +1,16 @@
 import SearchIcon from '@mui/icons-material/Search';
-import { Box, Button, Container, FormControl, InputAdornment, InputLabel, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material';
+import InfoIcon from '@mui/icons-material/Info';
+import { Alert, Box, Button, Container, FormControl, InputAdornment, InputLabel, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material';
 import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
 import { getAvailableYears, getMenRecords, getWomenRecords } from '../api/records';
 import ClubEntryRules from '../components/ClubEntryRules';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
+import { useAdmin } from '../context';
 
 export default function RecordsPage() {
+  const { adminModeEnabled } = useAdmin();
   const [creditsData, setCreditsData] = useState({
     total: [],
     activity: [],
@@ -240,7 +243,21 @@ export default function RecordsPage() {
       
       {/* Navigation Buttons */}
       <NavigationButtons />
-      
+
+      {/* Admin Mode Info */}
+      {adminModeEnabled && (
+        <Container maxWidth="xl" sx={{ px: 2, mt: 2 }}>
+          <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Admin Information:</strong> Club credits are loaded from CSV files in <code>public/data/</code>. Race records are automatically imported from NYRR via the <code>fetch_historical_data.py</code> script.
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              <strong>管理员信息：</strong> 俱乐部积分从 <code>public/data/</code> 的CSV文件加载。比赛记录通过 <code>fetch_historical_data.py</code> 脚本从NYRR自动导入。
+            </Typography>
+          </Alert>
+        </Container>
+      )}
+
       {/* Records Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
         <Typography

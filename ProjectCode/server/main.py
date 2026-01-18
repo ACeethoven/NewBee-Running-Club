@@ -1,16 +1,17 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 import os
 
 from database import get_db, create_tables, Donor, Results, Member
 from models import (
     DonorCreate, DonorUpdate, DonorResponse, DonorsListResponse, DonationSummary,
     MemberCreate, MemberUpdate, MemberResponse, MemberPublicResponse, MemberStatus,
-    FirebaseUserSync
+    FirebaseUserSync, JoinApplicationRequest
 )
+from email_service import EmailService
 import bcrypt
 
 app = FastAPI(
@@ -22,7 +23,13 @@ app = FastAPI(
 # CORS middleware for frontend connection
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://newbeerunningclub.org"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://newbeerunningclub.org",
+        "https://www.newbeerunningclub.org",
+        "https://newbeerunning.org",
+        "https://www.newbeerunning.org",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,6 +39,38 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     create_tables()
+
+
+# Authorization dependency for admin-only endpoints
+def get_current_admin(
+    x_firebase_uid: Optional[str] = Header(None, alias="X-Firebase-UID"),
+    db: Session = Depends(get_db)
+) -> Member:
+    """
+    Verify that the request is from an authenticated admin user.
+    Requires X-Firebase-UID header with a valid admin's Firebase UID.
+    """
+    if not x_firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Please log in."
+        )
+
+    member = db.query(Member).filter(Member.firebase_uid == x_firebase_uid).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication. User not found."
+        )
+
+    if member.status != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required. You do not have permission to perform this action."
+        )
+
+    return member
+
 
 @app.get("/")
 def read_root():
@@ -159,6 +198,70 @@ def get_all_races(db: Session = Depends(get_db)):
         ]
     }
 
+
+@app.get("/api/results/member/{search_key}")
+def get_member_race_results(search_key: str, db: Session = Depends(get_db)):
+    """
+    Get race results for a specific member by name or NYRR ID.
+    Returns all results matching the search key along with statistics.
+    """
+    # Search by name (case-insensitive partial match)
+    results = db.query(Results).filter(
+        Results.name.ilike(f"%{search_key}%")
+    ).order_by(Results.race_time.desc()).all()
+
+    if not results:
+        return {
+            "results": [],
+            "stats": {
+                "total_races": 0,
+                "prs": {},
+                "recent_results": []
+            }
+        }
+
+    # Calculate PRs by distance
+    prs = {}
+    for result in results:
+        distance = result.race_distance
+        if distance and result.overall_time:
+            if distance not in prs or result.overall_time < prs[distance]["time"]:
+                prs[distance] = {
+                    "time": result.overall_time,
+                    "race": result.race,
+                    "date": result.race_time.strftime('%Y-%m-%d') if result.race_time else None,
+                    "pace": result.pace
+                }
+
+    # Format results
+    formatted_results = [
+        {
+            "id": r.id,
+            "race": r.race,
+            "race_date": r.race_time.strftime('%Y-%m-%d') if r.race_time else None,
+            "distance": r.race_distance,
+            "overall_time": r.overall_time,
+            "pace": r.pace,
+            "overall_place": r.overall_place,
+            "gender_place": r.gender_place,
+            "age_group_place": r.age_group_place,
+            "gender_age": r.gender_age,
+            "age_graded_time": r.age_graded_time,
+            "age_graded_percent": float(r.age_graded_percent) if r.age_graded_percent else None
+        }
+        for r in results
+    ]
+
+    return {
+        "results": formatted_results,
+        "stats": {
+            "total_races": len(results),
+            "prs": prs,
+            "recent_results": formatted_results[:5]
+        }
+    }
+
+
 # Main endpoint for SponsorsPage - replaces CSV fetching
 @app.get("/api/donors", response_model=DonorsListResponse)
 def get_all_donors(db: Session = Depends(get_db)):
@@ -280,9 +383,9 @@ def get_donation_summary(db: Session = Depends(get_db)):
 
 @app.get("/api/members", response_model=List[MemberPublicResponse])
 def get_all_members(db: Session = Depends(get_db)):
-    """Get all active members (public info only)"""
+    """Get all active members (public info only) - excludes pending and quit members"""
     members = db.query(Member).filter(
-        Member.status != 'not_with_newbee_anymore'
+        Member.status.in_(['runner', 'admin'])
     ).order_by(Member.display_name).all()
     return members
 
@@ -292,7 +395,7 @@ def get_members_for_credits(db: Session = Depends(get_db)):
     """Get members who opted to show in credits page"""
     members = db.query(Member).filter(
         Member.show_in_credits == True,
-        Member.status != 'not_with_newbee_anymore'
+        Member.status.in_(['runner', 'admin'])
     ).order_by(
         (Member.registration_credits + Member.checkin_credits +
          Member.volunteer_credits + Member.activity_credits).desc()
@@ -424,9 +527,9 @@ def delete_member(member_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/members/committee/list", response_model=List[MemberPublicResponse])
 def get_committee_members(db: Session = Depends(get_db)):
-    """Get all committee members"""
+    """Get all committee members (admin status indicates committee member)"""
     members = db.query(Member).filter(
-        Member.status.in_(['committee', 'admin'])
+        Member.status == 'admin'
     ).order_by(Member.display_name).all()
     return members
 
@@ -484,7 +587,7 @@ def sync_firebase_user(user_data: FirebaseUserSync, db: Session = Depends(get_db
         firebase_uid=user_data.firebase_uid,
         display_name=user_data.display_name,
         profile_photo_url=user_data.photo_url,
-        status='member'
+        status='pending'  # New signups default to pending status
     )
 
     db.add(new_member)
@@ -503,6 +606,157 @@ def get_member_by_firebase_uid(firebase_uid: str, db: Session = Depends(get_db))
             detail=f"Member with Firebase UID not found"
         )
     return member
+
+
+@app.get("/api/members/pending/list", response_model=List[MemberResponse])
+def get_pending_members(
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Get all pending member applications (for admin panel) - Admin only"""
+    members = db.query(Member).filter(
+        Member.status == 'pending'
+    ).order_by(Member.created_at.desc()).all()
+    return members
+
+
+@app.put("/api/members/{member_id}/approve")
+def approve_member(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Approve a pending member application (changes status to runner and sends notification) - Admin only"""
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Member with ID {member_id} not found"
+        )
+
+    if member.status != 'pending':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Member is not in pending status (current status: {member.status})"
+        )
+
+    member.status = 'runner'
+    db.commit()
+    db.refresh(member)
+
+    # Send approval notification email
+    try:
+        EmailService.send_approval_notification(member.email, member.display_name or member.username)
+    except Exception as e:
+        print(f"Error sending approval email: {str(e)}")
+        # Don't fail the request if email fails
+
+    return {"message": f"Member {member.display_name or member.username} approved successfully", "member_id": member_id}
+
+
+@app.put("/api/members/{member_id}/reject")
+def reject_member(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Reject a pending member application (deletes the member record) - Admin only"""
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Member with ID {member_id} not found"
+        )
+
+    if member.status != 'pending':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Member is not in pending status (current status: {member.status})"
+        )
+
+    db.delete(member)
+    db.commit()
+    return {"message": f"Member application rejected and removed", "member_id": member_id}
+
+
+@app.post("/api/join/submit")
+def submit_join_application(application: JoinApplicationRequest, db: Session = Depends(get_db)):
+    """
+    Submit a new member join application
+    Sends confirmation email to applicant and notification to committee
+    """
+    # Check if email already exists
+    existing_member = db.query(Member).filter(Member.email == application.email).first()
+    if existing_member:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists. Please log in or use a different email."
+        )
+
+    # Generate username from name
+    username = application.name.lower().replace(" ", "")
+    base_username = username
+    counter = 1
+    while db.query(Member).filter(Member.username == username).first():
+        username = f"{base_username}{counter}"
+        counter += 1
+
+    # Create member with pending status
+    placeholder_hash = bcrypt.hashpw(b"pending-application", bcrypt.gensalt()).decode('utf-8')
+
+    new_member = Member(
+        username=username,
+        email=application.email,
+        password_hash=placeholder_hash,
+        display_name=application.name,
+        nyrr_member_id=application.nyrr_id,
+        status='pending',
+        # Application form data
+        running_experience=application.running_experience,
+        running_location=application.location,
+        weekly_frequency=application.weekly_frequency,
+        monthly_mileage=application.monthly_mileage,
+        race_experience=application.race_experience,
+        running_goals=application.goals,
+        introduction=application.introduction
+    )
+
+    db.add(new_member)
+    db.commit()
+    db.refresh(new_member)
+
+    # Prepare form data for committee notification
+    form_data = {
+        "Running Experience": application.running_experience,
+        "Location": application.location,
+        "Weekly Frequency": application.weekly_frequency,
+        "Monthly Mileage": application.monthly_mileage,
+        "Race Experience": application.race_experience or "No races yet",
+        "Goals": application.goals,
+        "Introduction": application.introduction
+    }
+
+    # Send emails
+    try:
+        # Send confirmation to applicant
+        EmailService.send_join_confirmation(application.email, application.name)
+
+        # Send notification to committee
+        EmailService.send_committee_notification(
+            application.name,
+            application.email,
+            application.nyrr_id,
+            form_data
+        )
+    except Exception as e:
+        print(f"Error sending emails: {str(e)}")
+        # Don't fail the request if email fails, just log it
+
+    return {
+        "message": "Application submitted successfully! You will receive a confirmation email shortly.",
+        "member_id": new_member.id,
+        "status": "pending"
+    }
 
 
 if __name__ == "__main__":

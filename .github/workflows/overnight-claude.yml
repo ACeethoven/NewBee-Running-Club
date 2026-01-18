@@ -3,7 +3,7 @@ name: Overnight Claude Work
 on:
   schedule:
 
-    - cron: "38 10 * * *"  # 2:38 AM PST (San Francisco winter time)
+    - cron: "30 9 * * *"  # 1:30 AM PST (San Francisco winter time)
 
   workflow_dispatch:  # Allow manual trigger for testing
 
@@ -22,12 +22,15 @@ jobs:
           ref: dev
 
       - uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_MODEL: claude-opus-4-5-20251101
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           base_branch: dev
           claude_args: |
-            --allowedTools "Edit,Write,Bash(git checkout -b *),Bash(git add *),Bash(git commit *),Bash(git push *),Bash(pip install *),Bash(python *)"
+            --model claude-opus-4-5-20251101
+            --allowedTools "Edit,Write,Bash,Read,Glob,Grep,Task"
           prompt: |
             IMPORTANT: This project has a React frontend (client/) and Python/FastAPI backend (server/).
             There is NO package.json in the server directory - it uses requirements.txt for Python dependencies.

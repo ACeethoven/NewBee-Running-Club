@@ -1,14 +1,21 @@
 import FilterListIcon from '@mui/icons-material/FilterList';
-import { Box, Button, Card, CardContent, CardMedia, Container, Grid, IconButton, MenuItem, TextField, Typography } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import InfoIcon from '@mui/icons-material/Info';
+import { Alert, Box, Button, Card, CardContent, CardMedia, Container, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, TextField, Tooltip, Typography } from '@mui/material';
 import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
+import { useAdmin } from '../context';
 
 export default function CalendarPage() {
+  const { adminModeEnabled } = useAdmin();
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [featuredEvents, setFeaturedEvents] = useState([]);
+  const [adminInfoOpen, setAdminInfoOpen] = useState(false);
   const [filters, setFilters] = useState({
     showAvailable: true,
     date: '',
@@ -49,7 +56,7 @@ export default function CalendarPage() {
                 const isPM = event.time.toLowerCase().includes('pm');
                 const eventDate = new Date(year, month - 1, day, isPM ? hours + 12 : hours, minutes);
                 console.log('Event:', event.name, 'Status:', event.status, 'Raw event:', event);
-                
+
                 return {
                   ...event,
                   image: event.image, // Use the image link from the CSV file
@@ -58,12 +65,12 @@ export default function CalendarPage() {
               })
               .filter(event => event.status === 'Upcoming') // Filter by Upcoming status
               .sort((a, b) => a.date.localeCompare(b.date)); // Sort in chronological order
-            
+
             console.log('Upcoming events:', sortedEvents);
-            
+
             // Set upcoming events
             setUpcomingEvents(sortedEvents);
-            
+
             // Set featured events (first 3 events)
             setFeaturedEvents(sortedEvents.slice(0, 3).map(event => ({
               id: event.id,
@@ -105,6 +112,20 @@ export default function CalendarPage() {
     });
   };
 
+  const handleEditEvent = (e, event) => {
+    e.stopPropagation();
+    setAdminInfoOpen(true);
+  };
+
+  const handleDeleteEvent = (e, event) => {
+    e.stopPropagation();
+    setAdminInfoOpen(true);
+  };
+
+  const handleAddEvent = () => {
+    setAdminInfoOpen(true);
+  };
+
   // Filter events based on selected filters
   const filteredEvents = upcomingEvents.filter(event => {
     if (filters.date) {
@@ -122,6 +143,8 @@ export default function CalendarPage() {
           break;
         case 'next-month':
           if (event.parsedDate > nextMonth || event.parsedDate < referenceDate) return false;
+          break;
+        default:
           break;
       }
     }
@@ -141,33 +164,70 @@ export default function CalendarPage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
       {/* Logo Section */}
       <Logo />
-      
+
       {/* Navigation Buttons */}
       <NavigationButtons />
-      
+
+      {/* Admin Mode Alert */}
+      {adminModeEnabled && (
+        <Container maxWidth="xl" sx={{ px: 2, mt: 2 }}>
+          <Alert
+            severity="info"
+            icon={<InfoIcon />}
+            action={
+              <Button color="inherit" size="small" onClick={() => setAdminInfoOpen(true)}>
+                Learn More
+              </Button>
+            }
+          >
+            Admin mode enabled. You can edit and delete events. / 管理员模式已开启，您可以编辑和删除活动。
+          </Alert>
+        </Container>
+      )}
+
       {/* Featured Events Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
-        <Typography
-          variant="h4"
-          sx={{
-            fontWeight: 600,
-            color: '#FFA500',
-            mb: 3
-          }}
-        >
-          Featured Events
-          精选活动
-        </Typography>
-        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 600,
+              color: '#FFA500'
+            }}
+          >
+            Featured Events
+            精选活动
+          </Typography>
+
+          {adminModeEnabled && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddEvent}
+              sx={{
+                backgroundColor: '#FFB84D',
+                color: 'white',
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: '#FFA833',
+                }
+              }}
+            >
+              Add Event / 添加活动
+            </Button>
+          )}
+        </Box>
+
         <Grid container spacing={3}>
           {featuredEvents.map((event) => (
             <Grid item xs={12} md={4} key={event.id}>
-              <Card 
-                sx={{ 
+              <Card
+                sx={{
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
                   cursor: 'pointer',
+                  position: 'relative',
                   '&:hover': {
                     transform: 'translateY(-4px)',
                     transition: 'transform 0.3s ease-in-out'
@@ -175,6 +235,44 @@ export default function CalendarPage() {
                 }}
                 onClick={() => handleEventClick(event)}
               >
+                {/* Admin Edit/Delete Buttons */}
+                {adminModeEnabled && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      zIndex: 10,
+                      display: 'flex',
+                      gap: 0.5
+                    }}
+                  >
+                    <Tooltip title="Edit event / 编辑活动">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => handleEditEvent(e, event)}
+                        sx={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          '&:hover': { backgroundColor: 'white' }
+                        }}
+                      >
+                        <EditIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete event / 删除活动">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => handleDeleteEvent(e, event)}
+                        sx={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          '&:hover': { backgroundColor: 'white' }
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" color="error" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                )}
                 <CardMedia
                   component="img"
                   height="200"
@@ -196,9 +294,9 @@ export default function CalendarPage() {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     {event.description}
                   </Typography>
-                  <Button 
-                    variant="contained" 
-                    sx={{ 
+                  <Button
+                    variant="contained"
+                    sx={{
                       backgroundColor: '#FFB84D',
                       color: 'white',
                       textTransform: 'none',
@@ -240,9 +338,9 @@ export default function CalendarPage() {
             Upcoming Events
             即将举行的活动
           </Typography>
-          
-          <IconButton 
-            sx={{ 
+
+          <IconButton
+            sx={{
               color: '#FFA500',
               '&:hover': {
                 backgroundColor: 'rgba(255, 165, 0, 0.1)'
@@ -317,13 +415,14 @@ export default function CalendarPage() {
         {/* Events List */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {filteredEvents.map((event) => (
-            <Card 
+            <Card
               key={event.id}
-              sx={{ 
+              sx={{
                 display: 'flex',
                 height: '200px',
                 overflow: 'hidden',
                 cursor: 'pointer',
+                position: 'relative',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   transition: 'transform 0.3s ease-in-out',
@@ -332,6 +431,45 @@ export default function CalendarPage() {
               }}
               onClick={() => handleEventClick(event)}
             >
+              {/* Admin Edit/Delete Buttons for list view */}
+              {adminModeEnabled && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    zIndex: 10,
+                    display: 'flex',
+                    gap: 0.5
+                  }}
+                >
+                  <Tooltip title="Edit event / 编辑活动">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleEditEvent(e, event)}
+                      sx={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        '&:hover': { backgroundColor: 'white' }
+                      }}
+                    >
+                      <EditIcon fontSize="small" color="primary" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete event / 删除活动">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleDeleteEvent(e, event)}
+                      sx={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        '&:hover': { backgroundColor: 'white' }
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" color="error" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
+
               {/* Time Column */}
               <Box
                 sx={{
@@ -394,9 +532,9 @@ export default function CalendarPage() {
                       {event.chineseName}
                     </Typography>
                   </Box>
-                  <Button 
+                  <Button
                     variant="contained"
-                    sx={{ 
+                    sx={{
                       backgroundColor: '#FFB84D',
                       color: 'white',
                       textTransform: 'none',
@@ -501,9 +639,9 @@ export default function CalendarPage() {
                 {selectedEvent.chineseLocation}
               </Typography>
               <Box sx={{ mt: 2 }}>
-                <Button 
+                <Button
                   variant="contained"
-                  sx={{ 
+                  sx={{
                     backgroundColor: '#FFB84D',
                     color: 'white',
                     textTransform: 'none',
@@ -526,7 +664,7 @@ export default function CalendarPage() {
                 >
                   Sign Up
                 </Button>
-                <Button 
+                <Button
                   variant="outlined"
                   onClick={() => setSelectedEvent(null)}
                   sx={{
@@ -556,6 +694,49 @@ export default function CalendarPage() {
           </Card>
         </Box>
       )}
+
+      {/* Admin Info Dialog */}
+      <Dialog open={adminInfoOpen} onClose={() => setAdminInfoOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Event Management / 活动管理
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2" gutterBottom>
+              <strong>How to manage events:</strong>
+            </Typography>
+            <Typography variant="body2" component="div">
+              Events are stored in CSV files. To add, edit, or delete events:
+              <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                <li>Navigate to <code>public/data/events.csv</code></li>
+                <li>Edit the CSV file with your changes</li>
+                <li>Save the file and refresh the page</li>
+              </ol>
+            </Typography>
+          </Alert>
+          <Alert severity="info">
+            <Typography variant="body2" gutterBottom>
+              <strong>如何管理活动：</strong>
+            </Typography>
+            <Typography variant="body2" component="div">
+              活动存储在CSV文件中。要添加、编辑或删除活动：
+              <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                <li>导航到 <code>public/data/events.csv</code></li>
+                <li>使用您的更改编辑CSV文件</li>
+                <li>保存文件并刷新页面</li>
+              </ol>
+            </Typography>
+          </Alert>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            CSV columns: id, name, chineseName, date, time, location, chineseLocation, description, chineseDescription, image, status
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAdminInfoOpen(false)}>
+            Close / 关闭
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
-} 
+}
