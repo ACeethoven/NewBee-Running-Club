@@ -13,20 +13,43 @@ import {
   import { syncFirebaseUser } from '../api/members';
 
   /**
-   * Sync Firebase user to MySQL members table
+   * Sync Firebase user to MySQL members table and check status
    * @param {Object} user - Firebase user object
+   * @returns {Object} - { member, error } - member data or error if pending/blocked
    */
   const syncUserToDatabase = async (user) => {
     try {
-      await syncFirebaseUser({
+      const member = await syncFirebaseUser({
         firebase_uid: user.uid,
         email: user.email,
         display_name: user.displayName,
         photo_url: user.photoURL
       });
+
+      // Check if member is pending approval
+      if (member.status === 'pending') {
+        // Sign them out
+        await signOut(auth);
+        return {
+          member: null,
+          error: 'Your account is pending approval. Please wait for the committee to review your application. / 您的账户正在等待审核，请等待管理员审批。'
+        };
+      }
+
+      // Check if member quit
+      if (member.status === 'quit') {
+        await signOut(auth);
+        return {
+          member: null,
+          error: 'Your account has been deactivated. Please contact the committee. / 您的账户已停用，请联系管理员。'
+        };
+      }
+
+      return { member, error: null };
     } catch (error) {
       console.error('Failed to sync user to database:', error);
       // Don't throw - auth succeeded, just logging the sync failure
+      return { member: null, error: null };
     }
   };
   
@@ -34,8 +57,11 @@ import {
   export const loginWithEmailAndPassword = async (email, password) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Sync user to MySQL database
-      await syncUserToDatabase(userCredential.user);
+      // Sync user to MySQL database and check status
+      const { error: statusError } = await syncUserToDatabase(userCredential.user);
+      if (statusError) {
+        return { user: null, error: statusError };
+      }
       return { user: userCredential.user, error: null };
     } catch (error) {
       return { user: null, error: error.message };
@@ -52,11 +78,16 @@ import {
         await updateProfile(userCredential.user, { displayName });
       }
 
-      // Sync user to MySQL database
-      await syncUserToDatabase({
+      // Sync user to MySQL database and check status
+      const { error: statusError } = await syncUserToDatabase({
         ...userCredential.user,
         displayName: displayName || userCredential.user.displayName
       });
+
+      // For new registrations, they will be pending - sign them out and show message
+      if (statusError) {
+        return { user: null, error: statusError };
+      }
 
       return { user: userCredential.user, error: null };
     } catch (error) {
@@ -69,8 +100,11 @@ import {
     try {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
-      // Sync user to MySQL database
-      await syncUserToDatabase(userCredential.user);
+      // Sync user to MySQL database and check status
+      const { error: statusError } = await syncUserToDatabase(userCredential.user);
+      if (statusError) {
+        return { user: null, error: statusError };
+      }
       return { user: userCredential.user, error: null };
     } catch (error) {
       return { user: null, error: error.message };
@@ -82,8 +116,11 @@ import {
     try {
       const provider = new FacebookAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
-      // Sync user to MySQL database
-      await syncUserToDatabase(userCredential.user);
+      // Sync user to MySQL database and check status
+      const { error: statusError } = await syncUserToDatabase(userCredential.user);
+      if (statusError) {
+        return { user: null, error: statusError };
+      }
       return { user: userCredential.user, error: null };
     } catch (error) {
       return { user: null, error: error.message };
@@ -95,8 +132,11 @@ import {
     try {
       const provider = new GithubAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
-      // Sync user to MySQL database
-      await syncUserToDatabase(userCredential.user);
+      // Sync user to MySQL database and check status
+      const { error: statusError } = await syncUserToDatabase(userCredential.user);
+      if (statusError) {
+        return { user: null, error: statusError };
+      }
       return { user: userCredential.user, error: null };
     } catch (error) {
       return { user: null, error: error.message };
