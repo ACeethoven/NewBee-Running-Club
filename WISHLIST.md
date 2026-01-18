@@ -35,6 +35,7 @@ Claude will:
 - [ ] Show race stats: total races, PRs by distance, recent results
 - [ ] Allow user to edit profile fields: name, email, phone, NYRR ID, etc.
 - [ ] Display user's current membership status (pending/runner/admin)
+- [ ] Delete dashboard page, and migrate all contents there to profile page.
 
 ---
 

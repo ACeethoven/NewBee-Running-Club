@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import React, { useEffect, useRef, useState } from 'react';
 import Logo from '../components/Logo';
-import PageButtons from '../components/PageButtons';
+import NavigationButtons from '../components/NavigationButtons';
 
 const steps = ['Read Terms', 'Agree to Terms', 'Complete Questionnaire'];
 
@@ -411,7 +411,7 @@ export default function JoinPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
       <Logo />
-      <PageButtons />
+      <NavigationButtons />
       
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
         <Typography

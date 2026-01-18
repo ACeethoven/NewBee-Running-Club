@@ -86,7 +86,7 @@ export const committeeMembers = [
     name: "Ruicong Ni",
     position: {
       en: "Committee Observer",
-      zh: "观察员"
+      zh: "创始人，观察员"
     },
     image: "/Committee 8.png"
   }

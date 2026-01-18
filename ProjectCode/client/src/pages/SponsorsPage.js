@@ -3,7 +3,7 @@ import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
 import DonorGrid from '../components/DonorGrid';
 import Logo from '../components/Logo';
-import PageButtons from '../components/PageButtons';
+import NavigationButtons from '../components/NavigationButtons';
 
 export default function SponsorsPage() {
   const [individualDonors, setIndividualDonors] = useState([]);
@@ -110,7 +110,7 @@ export default function SponsorsPage() {
       <Logo />
       
       {/* Navigation Buttons */}
-      <PageButtons />
+      <NavigationButtons />
       
       {/* Sponsors Text */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
