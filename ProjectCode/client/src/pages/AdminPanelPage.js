@@ -71,7 +71,7 @@ export default function AdminPanelPage() {
       }
 
       try {
-        const members = await getPendingMembers();
+        const members = await getPendingMembers(currentUser.uid);
         setPendingMembers(members);
         setError('');
       } catch (err) {
@@ -112,10 +112,10 @@ export default function AdminPanelPage() {
 
     try {
       if (action === 'approve') {
-        await approveMember(memberId);
+        await approveMember(memberId, currentUser.uid);
         setSuccessMessage(`Successfully approved ${memberName}!`);
       } else {
-        await rejectMember(memberId);
+        await rejectMember(memberId, currentUser.uid);
         setSuccessMessage(`Successfully rejected ${memberName}'s application.`);
       }
 
