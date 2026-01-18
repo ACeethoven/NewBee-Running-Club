@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 import os
 
 from database import get_db, create_tables, Donor, Results, Member
@@ -33,6 +33,38 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     create_tables()
+
+
+# Authorization dependency for admin-only endpoints
+def get_current_admin(
+    x_firebase_uid: Optional[str] = Header(None, alias="X-Firebase-UID"),
+    db: Session = Depends(get_db)
+) -> Member:
+    """
+    Verify that the request is from an authenticated admin user.
+    Requires X-Firebase-UID header with a valid admin's Firebase UID.
+    """
+    if not x_firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Please log in."
+        )
+
+    member = db.query(Member).filter(Member.firebase_uid == x_firebase_uid).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication. User not found."
+        )
+
+    if member.status != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required. You do not have permission to perform this action."
+        )
+
+    return member
+
 
 @app.get("/")
 def read_root():
@@ -507,8 +539,11 @@ def get_member_by_firebase_uid(firebase_uid: str, db: Session = Depends(get_db))
 
 
 @app.get("/api/members/pending/list", response_model=List[MemberResponse])
-def get_pending_members(db: Session = Depends(get_db)):
-    """Get all pending member applications (for admin panel)"""
+def get_pending_members(
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Get all pending member applications (for admin panel) - Admin only"""
     members = db.query(Member).filter(
         Member.status == 'pending'
     ).order_by(Member.created_at.desc()).all()
@@ -516,8 +551,12 @@ def get_pending_members(db: Session = Depends(get_db)):
 
 
 @app.put("/api/members/{member_id}/approve")
-def approve_member(member_id: int, db: Session = Depends(get_db)):
-    """Approve a pending member application (changes status to runner and sends notification)"""
+def approve_member(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Approve a pending member application (changes status to runner and sends notification) - Admin only"""
     member = db.query(Member).filter(Member.id == member_id).first()
     if not member:
         raise HTTPException(
@@ -546,8 +585,12 @@ def approve_member(member_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/api/members/{member_id}/reject")
-def reject_member(member_id: int, db: Session = Depends(get_db)):
-    """Reject a pending member application (deletes the member record)"""
+def reject_member(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Reject a pending member application (deletes the member record) - Admin only"""
     member = db.query(Member).filter(Member.id == member_id).first()
     if not member:
         raise HTTPException(
