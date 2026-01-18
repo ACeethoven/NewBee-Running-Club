@@ -28,11 +28,11 @@ jobs:
           base_branch: dev
           model: claude-opus-4-5-20251101
           claude_args: |
-            --allowedTools "Edit,Write,Bash(git checkout -b *),Bash(git add *),Bash(git commit *),Bash(git push *),Bash(pip install *),Bash(python *)"
+            --allowedTools "Edit,Write,Bash,Read,Glob,Grep,Task"
           prompt: |
             IMPORTANT: This project has a React frontend (client/) and Python/FastAPI backend (server/).
             There is NO package.json in the server directory - it uses requirements.txt for Python dependencies.
-            Read CLAUDE.md for full project context before starting any work.
+            Read claude.md (lowercase) for full project context before starting any work.
 
             Read the WISHLIST.md file in the repository root.
 
