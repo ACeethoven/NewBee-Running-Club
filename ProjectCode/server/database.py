@@ -104,10 +104,10 @@ class Results(Base):
 
 # Member status enum
 class MemberStatus(enum.Enum):
-    member = "member"
-    committee = "committee"
-    admin = "admin"
-    not_with_newbee_anymore = "not_with_newbee_anymore"
+    pending = "pending"  # New signups awaiting committee approval
+    runner = "runner"     # Approved regular members
+    admin = "admin"       # Admin and committee members with elevated privileges
+    quit = "quit"         # Members who left the club
 
 
 # Member Model for club members
@@ -123,7 +123,7 @@ class Member(Base):
     firebase_uid = Column(String(128), unique=True)
 
     # Status & Role
-    status = Column(String(30), nullable=False, default='member')
+    status = Column(String(30), nullable=False, default='pending')  # New signups default to pending
     committee_position = Column(String(100))
     committee_position_cn = Column(String(100))
 

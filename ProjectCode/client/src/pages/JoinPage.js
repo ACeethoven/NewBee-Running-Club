@@ -1,6 +1,8 @@
 import {
+  Alert,
   Box,
   Button,
+  CircularProgress,
   Container,
   Dialog,
   DialogActions,
@@ -17,6 +19,7 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
+import { submitJoinApplication } from '../api/members';
 
 const steps = ['Read Terms', 'Agree to Terms', 'Complete Questionnaire'];
 
@@ -25,9 +28,14 @@ export default function JoinPage() {
   const [agreed, setAgreed] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const termsContainerRef = useRef(null);
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
+    nyrr_id: '',
     runningExperience: '',
     location: '',
     weeklyFrequency: '',
@@ -75,22 +83,56 @@ export default function JoinPage() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send the form data to your backend
-    console.log('Form submitted:', formData);
-    // Reset form and show success message
-    setFormData({
-      name: '',
-      runningExperience: '',
-      location: '',
-      weeklyFrequency: '',
-      monthlyMileage: '',
-      raceExperience: '',
-      goals: '',
-      introduction: '',
-    });
-    setActiveStep(0);
+    setSubmitting(true);
+    setSubmitError('');
+
+    try {
+      // Map form data to API format
+      const applicationData = {
+        name: formData.name,
+        email: formData.email,
+        nyrr_id: formData.nyrr_id || null,
+        running_experience: formData.runningExperience,
+        location: formData.location,
+        weekly_frequency: formData.weeklyFrequency,
+        monthly_mileage: formData.monthlyMileage,
+        race_experience: formData.raceExperience || null,
+        goals: formData.goals,
+        introduction: formData.introduction,
+      };
+
+      await submitJoinApplication(applicationData);
+
+      // Show success message
+      setSubmitSuccess(true);
+
+      // Reset form after a delay
+      setTimeout(() => {
+        setFormData({
+          name: '',
+          email: '',
+          nyrr_id: '',
+          runningExperience: '',
+          location: '',
+          weeklyFrequency: '',
+          monthlyMileage: '',
+          raceExperience: '',
+          goals: '',
+          introduction: '',
+        });
+        setActiveStep(0);
+        setAgreed(false);
+        setSubmitSuccess(false);
+      }, 5000);
+
+    } catch (error) {
+      console.error('Error submitting application:', error);
+      setSubmitError(error.message || 'Failed to submit application. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderTerms = () => (
@@ -316,6 +358,18 @@ export default function JoinPage() {
 
   const renderQuestionnaire = () => (
     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+      {submitSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          Application submitted successfully! You will receive a confirmation email shortly.
+          <br />
+          申请提交成功！您将很快收到确认邮件。
+        </Alert>
+      )}
+      {submitError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {submitError}
+        </Alert>
+      )}
       <TextField
         fullWidth
         label="Name 姓名"
@@ -324,6 +378,28 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
+        disabled={submitting || submitSuccess}
+      />
+      <TextField
+        fullWidth
+        label="Email 电子邮箱"
+        name="email"
+        type="email"
+        value={formData.email}
+        onChange={handleFormChange}
+        margin="normal"
+        required
+        disabled={submitting || submitSuccess}
+      />
+      <TextField
+        fullWidth
+        label="NYRR Runner ID (Optional) NYRR跑者ID（可选）"
+        name="nyrr_id"
+        value={formData.nyrr_id}
+        onChange={handleFormChange}
+        margin="normal"
+        disabled={submitting || submitSuccess}
+        helperText="You can find your NYRR ID on the NYRR website 您可以在NYRR网站上找到您的ID"
       />
       <TextField
         fullWidth
@@ -335,6 +411,7 @@ export default function JoinPage() {
         required
         multiline
         rows={2}
+        disabled={submitting || submitSuccess}
       />
       <TextField
         fullWidth
@@ -344,6 +421,7 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
+        disabled={submitting || submitSuccess}
       />
       <TextField
         fullWidth
@@ -353,6 +431,7 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
+        disabled={submitting || submitSuccess}
       />
       <TextField
         fullWidth
@@ -362,6 +441,7 @@ export default function JoinPage() {
         onChange={handleFormChange}
         margin="normal"
         required
+        disabled={submitting || submitSuccess}
       />
       <TextField
         fullWidth
@@ -372,6 +452,7 @@ export default function JoinPage() {
         margin="normal"
         multiline
         rows={3}
+        disabled={submitting || submitSuccess}
       />
       <TextField
         fullWidth
@@ -383,6 +464,7 @@ export default function JoinPage() {
         required
         multiline
         rows={2}
+        disabled={submitting || submitSuccess}
       />
       <TextField
         fullWidth
@@ -394,15 +476,24 @@ export default function JoinPage() {
         required
         multiline
         rows={4}
+        disabled={submitting || submitSuccess}
       />
       <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
         <Button
           variant="contained"
           color="primary"
           type="submit"
-          sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+          disabled={submitting || submitSuccess}
+          sx={{
+            backgroundColor: '#FFA500',
+            '&:hover': { backgroundColor: '#FF8C00' },
+            '&.Mui-disabled': {
+              backgroundColor: 'rgba(255, 165, 0, 0.3)',
+              color: 'rgba(255, 255, 255, 0.7)',
+            },
+          }}
         >
-          Submit 提交
+          {submitting ? <CircularProgress size={24} color="inherit" /> : 'Submit 提交'}
         </Button>
       </Box>
     </Box>
