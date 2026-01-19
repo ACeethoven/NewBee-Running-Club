@@ -166,7 +166,7 @@ const RegisterPage = () => {
               }
             }}
           >
-            Register
+            Register 注册
           </Button>
         </form>
         

@@ -612,7 +612,7 @@ export default function CalendarPage() {
                       }
                     }}
                   >
-                    Learn More
+                    Learn More & Sign Up 了解更多并报名
                   </Button>
                 </CardContent>
               </Card>
@@ -882,7 +882,7 @@ export default function CalendarPage() {
                       handleEventClick(event);
                     }}
                   >
-                    Learn More
+                    Learn More & Sign Up 了解更多并报名
                   </Button>
                 </Box>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -986,7 +986,7 @@ export default function CalendarPage() {
                     }
                   }}
                 >
-                  Sign Up
+                  Sign Up 报名
                 </Button>
                 <Button
                   variant="outlined"
@@ -1011,7 +1011,7 @@ export default function CalendarPage() {
                     }
                   }}
                 >
-                  Close
+                  Close 关闭
                 </Button>
               </Box>
             </CardContent>

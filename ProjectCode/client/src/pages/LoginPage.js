@@ -140,7 +140,7 @@ const LoginPage = () => {
               }
             }}
           >
-            Sign In
+            Sign In 登录
           </Button>
         </form>
         
