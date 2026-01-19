@@ -1,6 +1,14 @@
+import { useState } from 'react';
 import { Box, Typography } from '@mui/material';
+import PersonIcon from '@mui/icons-material/Person';
 
 export default function CommitteeMemberCard({ member, onImageClick }) {
+  const [imageError, setImageError] = useState(false);
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
   return (
     <Box sx={{
       display: 'flex',
@@ -8,12 +16,32 @@ export default function CommitteeMemberCard({ member, onImageClick }) {
       alignItems: 'center',
       gap: 1
     }}>
-      <Box
-        component="img"
-        src={member.image}
-        alt={`Committee Member ${member.name}`}
-        onClick={() => onImageClick(member.image)}
-        sx={{
+      {imageError || !member.image ? (
+        <Box
+          onClick={() => member.image && onImageClick(member.image)}
+          sx={{
+            width: '100%',
+            maxWidth: '300px',
+            aspectRatio: '1',
+            borderRadius: '12px',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            backgroundColor: '#e0e0e0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: member.image ? 'pointer' : 'default'
+          }}
+        >
+          <PersonIcon sx={{ fontSize: 80, color: '#9e9e9e' }} />
+        </Box>
+      ) : (
+        <Box
+          component="img"
+          src={member.image}
+          alt={`Committee Member ${member.name}`}
+          onClick={() => onImageClick(member.image)}
+          onError={handleImageError}
+          sx={{
           width: '100%',
           maxWidth: '300px',
           aspectRatio: '1',
@@ -27,6 +55,7 @@ export default function CommitteeMemberCard({ member, onImageClick }) {
           }
         }}
       />
+      )}
       <Typography
         variant="h6"
         sx={{

@@ -79,7 +79,7 @@ export const committeeMembers = [
       en: "Committee Observer",
       zh: "观察员"
     },
-    image: "/ChengCheng Zhao.png"
+    image: "/Chengcheng Zhao.png"
   },
   {
     id: 10,
