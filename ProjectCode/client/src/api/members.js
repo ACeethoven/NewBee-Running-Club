@@ -139,10 +139,11 @@ export async function approveMember(memberId, firebaseUid) {
  * Reject a pending member application (admin only)
  * @param {number} memberId - Member ID to reject
  * @param {string} firebaseUid - Firebase UID of the admin user
+ * @param {string} rejectionReason - Reason for rejection (required)
  * @returns {Promise<Object>} Rejection response
  */
-export async function rejectMember(memberId, firebaseUid) {
-  return api.put(`/api/members/${memberId}/reject`, {}, getAdminHeaders(firebaseUid));
+export async function rejectMember(memberId, firebaseUid, rejectionReason) {
+  return api.put(`/api/members/${memberId}/reject`, { rejection_reason: rejectionReason }, getAdminHeaders(firebaseUid));
 }
 
 /**

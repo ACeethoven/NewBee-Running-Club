@@ -114,11 +114,13 @@ class Results(Base):
 
 # Member status enum
 class MemberStatus(enum.Enum):
-    pending = "pending"  # New signups awaiting committee approval
-    runner = "runner"     # Approved regular members
-    committee = "committee"  # Committee members with elevated privileges (subset of admin)
-    admin = "admin"       # Full admin with all privileges
-    quit = "quit"         # Members who left the club
+    pending = "pending"       # New signups awaiting committee approval
+    rejected = "rejected"     # Application denied (cannot log in, can be reconsidered)
+    runner = "runner"         # Approved regular members
+    committee = "committee"   # Committee members with elevated privileges (subset of admin)
+    admin = "admin"           # Full admin with all privileges
+    suspended = "suspended"   # Temporarily blocked (cannot log in)
+    quit = "quit"             # Members who left the club (cannot log in)
 
 
 # Member Model for club members
@@ -135,6 +137,9 @@ class Member(Base):
 
     # Status & Role
     status = Column(String(30), nullable=False, default='pending')  # New signups default to pending
+    status_reason = Column(String(500))  # Reason for rejection/suspension/etc.
+    status_updated_at = Column(DateTime)  # When status was last changed
+    status_updated_by = Column(String(100))  # Who changed the status (admin name)
     committee_position = Column(String(100))
     committee_position_cn = Column(String(100))
 

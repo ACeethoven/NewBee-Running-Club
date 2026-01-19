@@ -57,6 +57,8 @@ import ImageIcon from '@mui/icons-material/Image';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import GroupsIcon from '@mui/icons-material/Groups';
 
 function TabPanel({ children, value, index, ...other }) {
   return (
@@ -84,6 +86,10 @@ export default function AdminPanelPage() {
   const [actionLoading, setActionLoading] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, id: null, name: '' });
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Rejection dialog state
+  const [rejectDialog, setRejectDialog] = useState({ open: false, id: null, name: '' });
+  const [rejectionReason, setRejectionReason] = useState('');
   const [isCommittee, setIsCommittee] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false); // True only for full admin status
   const [currentMemberData, setCurrentMemberData] = useState(null);
@@ -224,7 +230,37 @@ export default function AdminPanelPage() {
   };
 
   const handleReject = (memberId, memberName) => {
-    setConfirmDialog({ open: true, action: 'reject', id: memberId, name: memberName });
+    setRejectDialog({ open: true, id: memberId, name: memberName });
+    setRejectionReason('');
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectionReason.trim()) {
+      setError('Please provide a reason for rejection.');
+      return;
+    }
+
+    const { id, name } = rejectDialog;
+    setActionLoading(id);
+    setRejectDialog({ open: false, id: null, name: '' });
+
+    try {
+      await rejectMember(id, currentUser.uid, rejectionReason.trim());
+      setSuccessMessage(`Successfully rejected ${name}'s application. An email has been sent to notify them.`);
+      setPendingMembers(prev => prev.filter(m => m.id !== id));
+      setRejectionReason('');
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error rejecting member:', err);
+      setError('Failed to reject member. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCancelReject = () => {
+    setRejectDialog({ open: false, id: null, name: '' });
+    setRejectionReason('');
   };
 
   const handleConfirmAction = async () => {
@@ -236,10 +272,6 @@ export default function AdminPanelPage() {
       if (action === 'approve') {
         await approveMember(id, currentUser.uid);
         setSuccessMessage(`Successfully approved ${name}!`);
-        setPendingMembers(prev => prev.filter(m => m.id !== id));
-      } else if (action === 'reject') {
-        await rejectMember(id, currentUser.uid);
-        setSuccessMessage(`Successfully rejected ${name}'s application.`);
         setPendingMembers(prev => prev.filter(m => m.id !== id));
       } else if (action === 'deleteEvent') {
         await deleteEvent(id, currentUser.uid);
@@ -655,9 +687,9 @@ export default function AdminPanelPage() {
             textAlign: 'center'
           }}
         >
-          Admin Dashboard
+          {isAdmin ? 'Admin Dashboard' : 'Committee Dashboard'}
           <br />
-          管理面板
+          {isAdmin ? '管理面板' : '委员面板'}
         </Typography>
 
         {successMessage && (
@@ -698,8 +730,8 @@ export default function AdminPanelPage() {
             <Tab icon={<PeopleIcon />} label="Members" iconPosition="start" />
             <Tab icon={<DirectionsRunIcon />} label={`Activities${pendingActivities.length > 0 ? ` (${pendingActivities.length})` : ''}`} iconPosition="start" />
             <Tab icon={<EventIcon />} label="Events" iconPosition="start" />
-            <Tab icon={<ImageIcon />} label="Banners" iconPosition="start" />
-            <Tab icon={<ViewModuleIcon />} label="Sections" iconPosition="start" />
+            <Tab icon={<ImageIcon />} label="Banners" iconPosition="start" sx={{ display: isAdmin ? 'inline-flex' : 'none' }} />
+            <Tab icon={<ViewModuleIcon />} label="Sections" iconPosition="start" sx={{ display: isAdmin ? 'inline-flex' : 'none' }} />
             <Tab icon={<EmailIcon />} label="Newsletter" iconPosition="start" />
             <Tab icon={<BarChartIcon />} label="Analytics" iconPosition="start" />
             <Tab icon={<DescriptionIcon />} label="Meeting Notes" iconPosition="start" />
@@ -790,7 +822,10 @@ export default function AdminPanelPage() {
                           member.status === 'admin' ? 'primary' :
                           member.status === 'committee' ? 'secondary' :
                           member.status === 'runner' ? 'success' :
-                          member.status === 'pending' ? 'warning' : 'default'
+                          member.status === 'pending' ? 'warning' :
+                          member.status === 'rejected' ? 'error' :
+                          member.status === 'suspended' ? 'error' :
+                          member.status === 'quit' ? 'default' : 'default'
                         }
                       />
                     </TableCell>
@@ -1197,7 +1232,7 @@ export default function AdminPanelPage() {
           <Grid container spacing={3}>
             {/* Member Stats */}
             <Grid item xs={12} md={6} lg={3}>
-              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500', minHeight: 180, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <PeopleIcon sx={{ fontSize: 48, color: '#FFA500', mb: 1 }} />
                 <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
                   {memberStats.total}
@@ -1211,7 +1246,7 @@ export default function AdminPanelPage() {
 
             {/* Event Stats */}
             <Grid item xs={12} md={6} lg={3}>
-              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500', minHeight: 180, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <EventIcon sx={{ fontSize: 48, color: '#FFA500', mb: 1 }} />
                 <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
                   {eventStats.total}
@@ -1225,8 +1260,8 @@ export default function AdminPanelPage() {
 
             {/* Donation Stats */}
             <Grid item xs={12} md={6} lg={3}>
-              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
-                <Typography variant="h6" sx={{ color: '#FFA500', mb: 1 }}>$</Typography>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500', minHeight: 180, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <AttachMoneyIcon sx={{ fontSize: 48, color: '#FFA500', mb: 1 }} />
                 <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
                   {donationTotals.total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </Typography>
@@ -1237,14 +1272,14 @@ export default function AdminPanelPage() {
               </Paper>
             </Grid>
 
-            {/* Admin Stats */}
+            {/* Leadership Stats */}
             <Grid item xs={12} md={6} lg={3}>
-              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
-                <Typography variant="h6" sx={{ color: '#FFA500', mb: 1 }}>Committee</Typography>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500', minHeight: 180, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <GroupsIcon sx={{ fontSize: 48, color: '#FFA500', mb: 1 }} />
                 <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
-                  {memberStats.admins}
+                  {memberStats.admins + memberStats.committee}
                 </Typography>
-                <Typography variant="body1" color="text.secondary">Admin Members</Typography>
+                <Typography variant="body1" color="text.secondary">Committee & Admin</Typography>
                 <Typography variant="caption" color="text.secondary">
                   Managing the club
                 </Typography>
@@ -1808,7 +1843,6 @@ export default function AdminPanelPage() {
       <Dialog open={confirmDialog.open} onClose={handleCancelAction}>
         <DialogTitle>
           {confirmDialog.action === 'approve' ? 'Approve Application?' :
-           confirmDialog.action === 'reject' ? 'Reject Application?' :
            confirmDialog.action === 'deleteEvent' ? 'Delete Event?' :
            confirmDialog.action === 'deleteBanner' ? 'Delete Banner?' :
            confirmDialog.action === 'deleteSection' ? 'Delete Section?' : 'Confirm Action'}
@@ -1817,9 +1851,6 @@ export default function AdminPanelPage() {
           <DialogContentText>
             {confirmDialog.action === 'approve' && (
               <>Are you sure you want to approve {confirmDialog.name}'s application?</>
-            )}
-            {confirmDialog.action === 'reject' && (
-              <>Are you sure you want to reject {confirmDialog.name}'s application?</>
             )}
             {confirmDialog.action === 'deleteEvent' && (
               <>Are you sure you want to delete the event "{confirmDialog.name}"? This action cannot be undone.</>
@@ -1841,6 +1872,43 @@ export default function AdminPanelPage() {
             autoFocus
           >
             Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Rejection Dialog */}
+      <Dialog open={rejectDialog.open} onClose={handleCancelReject} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Reject Application 拒绝申请
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            You are about to reject {rejectDialog.name}'s application. Please provide a reason for rejection. This will be sent to the applicant via email.
+          </DialogContentText>
+          <DialogContentText sx={{ mb: 2, color: 'text.secondary' }}>
+            您即将拒绝 {rejectDialog.name} 的申请。请提供拒绝原因，此原因将通过电子邮件发送给申请人。
+          </DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            rows={4}
+            label="Rejection Reason / 拒绝原因"
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            placeholder="Please explain why this application is being rejected..."
+            required
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleCancelReject}>Cancel / 取消</Button>
+          <Button
+            onClick={handleConfirmReject}
+            variant="contained"
+            color="error"
+            disabled={!rejectionReason.trim() || actionLoading === rejectDialog.id}
+          >
+            {actionLoading === rejectDialog.id ? <CircularProgress size={20} /> : 'Reject / 拒绝'}
           </Button>
         </DialogActions>
       </Dialog>

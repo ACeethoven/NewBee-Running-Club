@@ -316,3 +316,74 @@ class EmailService:
 
         logger.info(f"[EMAIL] Sending approval notification to {member_email} ({member_name})")
         return EmailService.send_email(member_email, subject, body_html, body_text)
+
+    @staticmethod
+    def send_rejection_notification(member_email: str, member_name: str, rejection_reason: str) -> bool:
+        """
+        Send rejection notification to applicant
+
+        Args:
+            member_email: Applicant's email address
+            member_name: Applicant's name
+            rejection_reason: Reason for rejection
+
+        Returns:
+            True if email sent successfully
+        """
+        subject = "NewBee Running Club - Application Update 申请状态更新"
+
+        body_html = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #FFA500;">Application Update 申请状态更新</h2>
+
+                    <p>Dear {member_name},</p>
+                    <p style="color: #666;">亲爱的 {member_name}，</p>
+
+                    <p>Thank you for your interest in joining NewBee Running Club.</p>
+                    <p style="color: #666;">感谢您对加入新蜂跑团的关注。</p>
+
+                    <p>After reviewing your application, we regret to inform you that we are unable to approve your membership at this time.</p>
+                    <p style="color: #666;">经过审核，我们很遗憾地通知您，我们目前无法批准您的会员申请。</p>
+
+                    <div style="background-color: #f8f9fa; border-left: 4px solid #FFA500; padding: 15px; margin: 20px 0;">
+                        <p style="margin: 0;"><strong>Reason 原因:</strong></p>
+                        <p style="margin: 10px 0 0 0;">{rejection_reason}</p>
+                    </div>
+
+                    <p>If you believe this was in error or have questions, please feel free to contact us at <a href="mailto:newbeerunningclub@gmail.com" style="color: #FFA500;">newbeerunningclub@gmail.com</a>.</p>
+                    <p style="color: #666;">如果您认为这是一个错误或有任何疑问，请随时通过 <a href="mailto:newbeerunningclub@gmail.com" style="color: #FFA500;">newbeerunningclub@gmail.com</a> 联系我们。</p>
+
+                    <p style="margin-top: 30px;">
+                        <strong>NewBee Running Club</strong><br>
+                        <a href="https://newbeerunningclub.org" style="color: #FFA500;">newbeerunningclub.org</a>
+                    </p>
+                </div>
+            </body>
+        </html>
+        """
+
+        body_text = f"""
+        Application Update 申请状态更新
+
+        Dear {member_name},
+        亲爱的 {member_name}，
+
+        Thank you for your interest in joining NewBee Running Club.
+        感谢您对加入新蜂跑团的关注。
+
+        After reviewing your application, we regret to inform you that we are unable to approve your membership at this time.
+        经过审核，我们很遗憾地通知您，我们目前无法批准您的会员申请。
+
+        Reason 原因: {rejection_reason}
+
+        If you believe this was in error or have questions, please contact us at newbeerunningclub@gmail.com.
+        如果您认为这是一个错误或有任何疑问，请通过 newbeerunningclub@gmail.com 联系我们。
+
+        NewBee Running Club
+        newbeerunningclub.org
+        """
+
+        logger.info(f"[EMAIL] Sending rejection notification to {member_email} ({member_name})")
+        return EmailService.send_email(member_email, subject, body_html, body_text)

@@ -45,8 +45,10 @@ function NavText({ href, text, shortText }) {
 }
 
 export default function NavBar() {
-  const { isAdmin, adminModeEnabled, toggleAdminMode } = useAdmin();
+  const { isAdmin, adminModeEnabled, toggleAdminMode, memberData } = useAdmin();
   const { currentUser } = useAuth();
+  // Check if user is full admin (status === 'admin') vs committee member
+  const isFullAdmin = memberData?.status === 'admin';
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [pendingCount, setPendingCount] = useState(0);
@@ -112,7 +114,7 @@ export default function NavBar() {
                     overflow: 'hidden',
                   }}
                 >
-                  <Tooltip title="Admin Panel / 管理面板">
+                  <Tooltip title={isFullAdmin ? "Admin Panel / 管理面板" : "Committee Panel / 委员面板"}>
                     <Button
                       component={NavLink}
                       to="/admin"
@@ -143,10 +145,10 @@ export default function NavBar() {
                       >
                         <AdminPanelSettingsIcon sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' } }} />
                       </Badge>
-                      {!isMobile && <span style={{ marginLeft: '4px' }}>Admin</span>}
+                      {!isMobile && <span style={{ marginLeft: '4px' }}>{isFullAdmin ? 'Admin' : 'Committee'}</span>}
                     </Button>
                   </Tooltip>
-                  <Tooltip title={adminModeEnabled ? "Switch to Runner Mode / 切换跑者模式" : "Switch to Admin Mode / 切换管理员模式"}>
+                  <Tooltip title={adminModeEnabled ? "Switch to Runner Mode / 切换跑者模式" : `Switch to ${isFullAdmin ? 'Admin' : 'Committee'} Mode / 切换${isFullAdmin ? '管理员' : '委员'}模式`}>
                     <Box sx={{ display: 'flex', alignItems: 'center', pr: { xs: 0.5, sm: 1 } }}>
                       <Switch
                         checked={adminModeEnabled}
