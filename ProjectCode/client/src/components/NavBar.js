@@ -67,86 +67,62 @@ export default function NavBar() {
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              {/* Admin Mode Toggle */}
+              {/* Admin Panel Button with Mode Toggle - only visible to admins */}
               {isAdmin && (
-                <Tooltip title={adminModeEnabled ? "Disable Admin Mode / 关闭管理员模式" : "Enable Admin Mode / 开启管理员模式"}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      backgroundColor: adminModeEnabled ? 'rgba(255, 193, 7, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                      borderRadius: '8px',
-                      px: 1,
-                      py: 0.5,
-                      border: adminModeEnabled ? '1px solid #FFD700' : '1px solid rgba(255, 255, 255, 0.3)',
-                      transition: 'all 0.3s ease',
-                    }}
-                  >
-                    <AdminPanelSettingsIcon
-                      sx={{
-                        color: adminModeEnabled ? '#FFD700' : 'white',
-                        fontSize: '1.2rem',
-                        mr: 0.5
-                      }}
-                    />
-                    <Switch
-                      checked={adminModeEnabled}
-                      onChange={toggleAdminMode}
-                      size="small"
-                      sx={{
-                        '& .MuiSwitch-switchBase': {
-                          color: 'white',
-                          '&.Mui-checked': {
-                            color: '#FFD700',
-                          },
-                          '&.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: '#FFD700',
-                          },
-                        },
-                        '& .MuiSwitch-track': {
-                          backgroundColor: 'rgba(255, 255, 255, 0.5)',
-                        },
-                      }}
-                    />
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: adminModeEnabled ? '#FFD700' : 'white',
-                        fontWeight: adminModeEnabled ? 600 : 400,
-                        ml: 0.5,
-                        display: { xs: 'none', sm: 'block' }
-                      }}
-                    >
-                      Admin
-                    </Typography>
-                  </Box>
-                </Tooltip>
-              )}
-
-              {/* Admin Panel Button - only visible to admins */}
-              {isAdmin && (
-                <Button
-                  component={NavLink}
-                  to="/admin"
+                <Box
                   sx={{
-                    color: '#FFD700',
-                    textTransform: 'none',
-                    fontSize: '0.9rem',
-                    minWidth: 'auto',
-                    px: 3,
-                    py: 1,
-                    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    backgroundColor: adminModeEnabled ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 215, 0, 0.15)',
                     borderRadius: '8px',
-                    border: '1px solid rgba(255, 215, 0, 0.5)',
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
-                      border: '1px solid rgba(255, 215, 0, 0.7)',
-                    }
+                    border: adminModeEnabled ? '1px solid #FFD700' : '1px solid rgba(255, 215, 0, 0.5)',
+                    transition: 'all 0.3s ease',
+                    overflow: 'hidden',
                   }}
                 >
-                  Admin
-                </Button>
+                  <Button
+                    component={NavLink}
+                    to="/admin"
+                    sx={{
+                      color: '#FFD700',
+                      textTransform: 'none',
+                      fontSize: '0.9rem',
+                      minWidth: 'auto',
+                      px: 2,
+                      py: 1,
+                      borderRadius: 0,
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      }
+                    }}
+                  >
+                    <AdminPanelSettingsIcon sx={{ fontSize: '1.2rem', mr: 0.5 }} />
+                    Admin
+                  </Button>
+                  <Tooltip title={adminModeEnabled ? "Switch to Runner Mode / 切换跑者模式" : "Switch to Admin Mode / 切换管理员模式"}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', pr: 1 }}>
+                      <Switch
+                        checked={adminModeEnabled}
+                        onChange={toggleAdminMode}
+                        size="small"
+                        sx={{
+                          '& .MuiSwitch-switchBase': {
+                            color: 'white',
+                            '&.Mui-checked': {
+                              color: '#FFD700',
+                            },
+                            '&.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: '#FFD700',
+                            },
+                          },
+                          '& .MuiSwitch-track': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Tooltip>
+                </Box>
               )}
 
               <Button
