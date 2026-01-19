@@ -1,0 +1,60 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            echo "========================================="
+            echo "Starting deployment..."
+            echo "========================================="
+
+            cd /var/www/newbeerunning/NewBee-Running-Club
+
+            # Discard any local changes and reset to clean state
+            echo "Resetting local changes..."
+            git reset --hard HEAD
+            git clean -fd
+
+            # Pull latest code
+            echo "Pulling latest code..."
+            git fetch origin prod
+            git checkout prod
+            git pull origin prod
+
+            # Build frontend
+            echo "Building frontend..."
+            cd ProjectCode/client
+            npm ci
+            npm run build
+
+            # Deploy frontend
+            echo "Deploying frontend..."
+            sudo rm -rf /var/www/newbeerunning/frontend/*
+            sudo cp -r build/* /var/www/newbeerunning/frontend/
+
+            # Update backend
+            echo "Updating backend..."
+            cd ../server
+            rsync -av --exclude='venv' --exclude='__pycache__' --exclude='.env' . /var/www/newbeerunning/backend/
+            /var/www/newbeerunning/backend/venv/bin/pip install -r requirements.txt
+
+            # Restart backend service
+            echo "Restarting services..."
+            sudo systemctl restart newbeerunning-api
+
+            echo "========================================="
+            echo "Deployment complete!"
+            echo "========================================="
