@@ -29,6 +29,7 @@ else:
 if USE_SQLITE:
     engine = create_engine(
         DATABASE_URL,
+        connect_args={"check_same_thread": False},
         echo=os.getenv("DEBUG", "False").lower() == "true"
     )
 else:
@@ -63,6 +64,10 @@ class Donor(Base):
     notes = Column(Text)
     message = Column(Text)  # Optional donor message to display publicly
 
+    # Privacy and member linking fields
+    member_id = Column(Integer, ForeignKey('members.id', ondelete='SET NULL'), nullable=True)
+    hide_amount = Column(Boolean, default=False)  # User can choose to hide their donation amount
+
     # Indexes for better query performance
     __table_args__ = (
         Index('idx_donor_type', 'donor_type'),
@@ -70,6 +75,7 @@ class Donor(Base):
         Index('idx_amount', 'amount'),
         Index('idx_donation_date', 'donation_date'),
         Index('idx_created_at', 'created_at'),
+        Index('idx_donor_member_id', 'member_id'),
     )
 
 # Results Model for race results
@@ -110,7 +116,8 @@ class Results(Base):
 class MemberStatus(enum.Enum):
     pending = "pending"  # New signups awaiting committee approval
     runner = "runner"     # Approved regular members
-    admin = "admin"       # Admin and committee members with elevated privileges
+    committee = "committee"  # Committee members with elevated privileges (subset of admin)
+    admin = "admin"       # Full admin with all privileges
     quit = "quit"         # Members who left the club
 
 
@@ -166,9 +173,21 @@ class Member(Base):
     show_in_credits = Column(Boolean, default=True)  # Show in club credit pages
     show_in_donors = Column(Boolean, default=True)   # Show in donor pages
 
+    # Join activity tracking (for two-activity requirement)
+    activities_completed = Column(Integer, default=0)  # 0, 1, or 2 offline activities
+
     # Timestamps
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    activities = relationship(
+        "MemberActivity",
+        back_populates="member",
+        cascade="all, delete-orphan",
+        primaryjoin="Member.id == foreign(MemberActivity.member_id)"
+    )
+    donations = relationship("Donor", backref="member", foreign_keys="[Donor.member_id]")
 
     # Indexes for better query performance
     __table_args__ = (
@@ -176,6 +195,54 @@ class Member(Base):
         Index('idx_member_nyrr_id', 'nyrr_member_id'),
         Index('idx_member_email', 'email'),
     )
+
+
+# Activity Status enum for join workflow
+class ActivityStatus(enum.Enum):
+    pending = "pending"      # Submitted, awaiting verification
+    verified = "verified"    # Admin verified the activity
+    rejected = "rejected"    # Admin rejected the activity
+
+
+# Member Activity Model for tracking offline runs during join process
+class MemberActivity(Base):
+    __tablename__ = "member_activities"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    member_id = Column(Integer, ForeignKey('members.id', ondelete='CASCADE'), nullable=False)
+    activity_number = Column(Integer, nullable=False)  # 1 or 2 (first run, second run)
+
+    # Activity details
+    event_name = Column(String(255), nullable=False)
+    event_date = Column(Date, nullable=False)
+    description = Column(Text)
+    proof_url = Column(String(500))  # Optional photo/screenshot URL
+
+    # Verification
+    status = Column(String(20), default='pending')  # 'pending', 'verified', 'rejected'
+    verified_by = Column(Integer, ForeignKey('members.id', ondelete='SET NULL'))
+    verified_at = Column(DateTime)
+    rejection_reason = Column(String(255))
+
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    member = relationship("Member", back_populates="activities", foreign_keys=[member_id])
+    verifier = relationship("Member", foreign_keys=[verified_by])
+
+    __table_args__ = (
+        Index('idx_activity_member_id', 'member_id'),
+        Index('idx_activity_status', 'status'),
+        UniqueConstraint('member_id', 'activity_number', name='uq_member_activity_number'),
+    )
+
+
+# Event Type enum
+class EventType(enum.Enum):
+    standard = "standard"  # Regular club events
+    heylo = "heylo"        # Heylo-integrated events (weekly runs)
+    race = "race"          # Race events
 
 
 # Event Model for club events/activities
@@ -194,6 +261,11 @@ class Event(Base):
     image = Column(String(500))
     signup_link = Column(String(500))
     status = Column(String(50), default='Upcoming')  # 'Upcoming', 'Highlight', 'Cancelled'
+
+    # Heylo integration fields
+    event_type = Column(String(20), default='standard')  # 'standard', 'heylo', 'race'
+    heylo_embed = Column(Text)  # Stores Heylo embed code snippet for heylo event type
+
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -201,6 +273,7 @@ class Event(Base):
     __table_args__ = (
         Index('idx_event_status', 'status'),
         Index('idx_event_date', 'date'),
+        Index('idx_event_type', 'event_type'),
     )
 
 
@@ -347,6 +420,102 @@ class TempClubCredit(Base):
     __table_args__ = (
         Index('idx_temp_credit_full_name', 'full_name'),
         Index('idx_temp_credit_type', 'credit_type'),
+    )
+
+
+# BannerImage Model for homepage carousel banners
+class BannerImage(Base):
+    __tablename__ = "banner_images"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    image_url = Column(String(500), nullable=False)
+    alt_text = Column(String(255))
+    link_path = Column(String(255))  # Internal path like '/about'
+    label_en = Column(String(100))  # English label
+    label_cn = Column(String(100))  # Chinese label
+    display_order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='SET NULL'), nullable=True)  # Link to event
+    source_type = Column(String(20), default='manual')  # 'manual' or 'event_highlight'
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationship
+    event = relationship("Event", backref="banners")
+
+    __table_args__ = (
+        Index('idx_banner_display_order', 'display_order'),
+        Index('idx_banner_is_active', 'is_active'),
+    )
+
+
+# HomepageSection Model for admin-editable homepage sections
+class HomepageSection(Base):
+    __tablename__ = "homepage_sections"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title_en = Column(String(100), nullable=False)
+    title_cn = Column(String(100))
+    image_url = Column(Text)  # Use Text to support base64 data URLs
+    link_path = Column(String(255), nullable=False)
+    display_order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_section_display_order', 'display_order'),
+        Index('idx_section_is_active', 'is_active'),
+    )
+
+
+# TrainingTip Model for community training tips
+class TrainingTip(Base):
+    __tablename__ = "training_tips"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    category = Column(String(50), nullable=False)  # 'recovery', 'nutrition', 'technique', 'mental', 'gear'
+    title = Column(String(255), nullable=False)
+    title_cn = Column(String(255))  # Chinese title
+    content = Column(Text, nullable=False)
+    content_cn = Column(Text)  # Chinese content
+    video_url = Column(String(500))  # YouTube or Bilibili URL
+    video_platform = Column(String(20))  # 'youtube' or 'bilibili'
+    author_name = Column(String(100))
+    author_id = Column(Integer, ForeignKey('members.id', ondelete='SET NULL'))
+    upvotes = Column(Integer, default=0)
+    status = Column(String(20), default='pending')  # 'pending', 'approved', 'rejected'
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationship
+    author = relationship("Member", backref="training_tips")
+
+    __table_args__ = (
+        Index('idx_tip_category', 'category'),
+        Index('idx_tip_status', 'status'),
+        Index('idx_tip_upvotes', 'upvotes'),
+    )
+
+
+# TrainingTipUpvote Model to track who upvoted what
+class TrainingTipUpvote(Base):
+    __tablename__ = "training_tip_upvotes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tip_id = Column(Integer, ForeignKey('training_tips.id', ondelete='CASCADE'), nullable=False)
+    member_id = Column(Integer, ForeignKey('members.id', ondelete='CASCADE'), nullable=True)
+    anonymous_id = Column(String(128))  # For non-logged-in users
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    tip = relationship("TrainingTip", backref="upvote_records")
+    member = relationship("Member", backref="tip_upvotes")
+
+    __table_args__ = (
+        Index('idx_upvote_tip_id', 'tip_id'),
+        UniqueConstraint('tip_id', 'member_id', name='uq_upvote_tip_member'),
+        UniqueConstraint('tip_id', 'anonymous_id', name='uq_upvote_tip_anonymous'),
     )
 
 

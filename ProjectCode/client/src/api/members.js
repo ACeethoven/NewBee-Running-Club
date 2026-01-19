@@ -77,6 +77,15 @@ export async function getCommitteeMembers() {
 }
 
 /**
+ * Get all members (admin only)
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Promise<Array>} List of all members
+ */
+export async function getAllMembers(firebaseUid) {
+  return api.get('/api/members', {}, { 'X-Firebase-UID': firebaseUid });
+}
+
+/**
  * Submit join application
  * @param {Object} applicationData - Application form data
  * @param {string} applicationData.name - Full name
@@ -134,4 +143,32 @@ export async function approveMember(memberId, firebaseUid) {
  */
 export async function rejectMember(memberId, firebaseUid) {
   return api.put(`/api/members/${memberId}/reject`, {}, getAdminHeaders(firebaseUid));
+}
+
+/**
+ * Promote a runner to committee status (admin only)
+ * @param {number} memberId - Member ID to promote
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Promise<Object>} Promotion response
+ */
+export async function promoteToCommittee(memberId, firebaseUid) {
+  return api.put(`/api/members/${memberId}/promote-to-committee`, {}, getAdminHeaders(firebaseUid));
+}
+
+/**
+ * Demote a committee member back to runner (admin only)
+ * @param {number} memberId - Member ID to demote
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Promise<Object>} Demotion response
+ */
+export async function demoteFromCommittee(memberId, firebaseUid) {
+  return api.put(`/api/members/${memberId}/demote-from-committee`, {}, getAdminHeaders(firebaseUid));
+}
+
+/**
+ * Get all committee members and admins
+ * @returns {Promise<Array>} List of committee/admin members
+ */
+export async function getAllCommitteeAndAdmins() {
+  return api.get('/api/members/committee/all');
 }

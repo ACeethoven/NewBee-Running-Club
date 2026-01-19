@@ -4,9 +4,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import InfoIcon from '@mui/icons-material/Info';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import { Alert, Box, Button, Card, CardContent, CardMedia, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Snackbar, TextField, Tooltip, Typography } from '@mui/material';
+import EventIcon from '@mui/icons-material/Event';
+import { Alert, Box, Button, Card, CardContent, CardMedia, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Snackbar, TextField, Tooltip, Typography } from '@mui/material';
 import { useEffect, useState, useRef } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import DOMPurify from 'dompurify';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 import { useAdmin, useAuth } from '../context';
@@ -25,7 +27,9 @@ const initialFormData = {
   chinese_description: '',
   image: '',
   signup_link: '',
-  status: 'Upcoming'
+  status: 'Upcoming',
+  event_type: 'standard',
+  heylo_embed: ''
 };
 
 export default function CalendarPage() {
@@ -108,30 +112,41 @@ export default function CalendarPage() {
         const events = await getEventsByStatus('Upcoming');
         console.log('Fetched events from API:', events);
 
-        // Transform API response to match expected format
-        const transformedEvents = events.map(event => {
-          // Parse the event date and time for filtering
-          const [year, month, day] = event.date.split('-').map(Number);
-          const timeParts = event.time ? event.time.split(':').map(Number) : [0, 0];
-          const isPM = event.time ? event.time.toLowerCase().includes('pm') : false;
-          const eventDate = new Date(year, month - 1, day, isPM ? timeParts[0] + 12 : timeParts[0], timeParts[1] || 0);
+        // Get current year
+        const currentYear = new Date().getFullYear();
 
-          return {
-            id: event.id,
-            name: event.name,
-            chineseName: event.chinese_name,
-            date: event.date,
-            time: event.time,
-            location: event.location,
-            chineseLocation: event.chinese_location,
-            description: event.description,
-            chineseDescription: event.chinese_description,
-            image: event.image,
-            signupLink: event.signup_link,
-            status: event.status,
-            parsedDate: eventDate
-          };
-        }).sort((a, b) => a.date.localeCompare(b.date)); // Sort in chronological order
+        // Transform API response to match expected format and filter for current year
+        const transformedEvents = events
+          .filter(event => {
+            // Only include events from the current year
+            const eventYear = parseInt(event.date.split('-')[0], 10);
+            return eventYear === currentYear;
+          })
+          .map(event => {
+            // Parse the event date and time for filtering
+            const [year, month, day] = event.date.split('-').map(Number);
+            const timeParts = event.time ? event.time.split(':').map(Number) : [0, 0];
+            const isPM = event.time ? event.time.toLowerCase().includes('pm') : false;
+            const eventDate = new Date(year, month - 1, day, isPM ? timeParts[0] + 12 : timeParts[0], timeParts[1] || 0);
+
+            return {
+              id: event.id,
+              name: event.name,
+              chineseName: event.chinese_name,
+              date: event.date,
+              time: event.time,
+              location: event.location,
+              chineseLocation: event.chinese_location,
+              description: event.description,
+              chineseDescription: event.chinese_description,
+              image: event.image,
+              signupLink: event.signup_link,
+              status: event.status,
+              eventType: event.event_type || 'standard',
+              heyloEmbed: event.heylo_embed || '',
+              parsedDate: eventDate
+            };
+          }).sort((a, b) => a.date.localeCompare(b.date)); // Sort in chronological order
 
         console.log('Transformed upcoming events:', transformedEvents);
 
@@ -190,7 +205,9 @@ export default function CalendarPage() {
       chinese_description: event.chineseDescription || '',
       image: event.image || '',
       signup_link: event.signupLink || '',
-      status: event.status || 'Upcoming'
+      status: event.status || 'Upcoming',
+      event_type: event.eventType || event.event_type || 'standard',
+      heylo_embed: event.heyloEmbed || event.heylo_embed || ''
     });
     setEditingEventId(event.id);
     setImageFile(null);
@@ -275,7 +292,9 @@ export default function CalendarPage() {
         chineseDescription: event.chinese_description,
         image: event.image,
         signupLink: event.signup_link,
-        status: event.status
+        status: event.status,
+        eventType: event.event_type || 'standard',
+        heyloEmbed: event.heylo_embed || ''
       })).sort((a, b) => a.date.localeCompare(b.date));
       setUpcomingEvents(transformedEvents);
       setFeaturedEvents(transformedEvents.slice(0, 3).map(event => ({
@@ -288,7 +307,9 @@ export default function CalendarPage() {
         time: event.time,
         location: event.location,
         chineseLocation: event.chineseLocation,
-        chineseDescription: event.chineseDescription
+        chineseDescription: event.chineseDescription,
+        eventType: event.eventType,
+        heyloEmbed: event.heyloEmbed
       })));
     } catch (error) {
       console.error('Error saving event:', error);
@@ -324,7 +345,9 @@ export default function CalendarPage() {
         chineseDescription: event.chinese_description,
         image: event.image,
         signupLink: event.signup_link,
-        status: event.status
+        status: event.status,
+        eventType: event.event_type || 'standard',
+        heyloEmbed: event.heylo_embed || ''
       })).sort((a, b) => a.date.localeCompare(b.date));
       setUpcomingEvents(transformedEvents);
       setFeaturedEvents(transformedEvents.slice(0, 3).map(event => ({
@@ -337,7 +360,9 @@ export default function CalendarPage() {
         time: event.time,
         location: event.location,
         chineseLocation: event.chineseLocation,
-        chineseDescription: event.chineseDescription
+        chineseDescription: event.chineseDescription,
+        eventType: event.eventType,
+        heyloEmbed: event.heyloEmbed
       })));
     } catch (error) {
       console.error('Error deleting event:', error);
@@ -941,12 +966,63 @@ export default function CalendarPage() {
               }}
             />
             <CardContent>
-              <Typography variant="h5" gutterBottom>
-                {selectedEvent.name || selectedEvent.title}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Typography variant="h5" sx={{ flexGrow: 1 }}>
+                  {selectedEvent.name || selectedEvent.title}
+                </Typography>
+                {(selectedEvent.eventType || selectedEvent.event_type) === 'heylo' && (
+                  <Chip
+                    icon={<EventIcon />}
+                    label="Heylo Event"
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
+                {(selectedEvent.eventType || selectedEvent.event_type) === 'race' && (
+                  <Chip
+                    label="Race"
+                    size="small"
+                    color="secondary"
+                    variant="outlined"
+                  />
+                )}
+              </Box>
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 {selectedEvent.chineseName || selectedEvent.chineseTitle}
               </Typography>
+
+              {/* Heylo Embed Display */}
+              {(selectedEvent.eventType || selectedEvent.event_type) === 'heylo' && (selectedEvent.heyloEmbed || selectedEvent.heylo_embed) && (
+                <Box
+                  sx={{
+                    my: 2,
+                    p: 2,
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 2,
+                    border: '1px solid #e0e0e0'
+                  }}
+                >
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Heylo Event Details / Heylo活动详情
+                  </Typography>
+                  <Box
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(selectedEvent.heyloEmbed || selectedEvent.heylo_embed, {
+                        ADD_TAGS: ['iframe'],
+                        ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
+                      })
+                    }}
+                    sx={{
+                      '& iframe': {
+                        maxWidth: '100%',
+                        borderRadius: 1
+                      }
+                    }}
+                  />
+                </Box>
+              )}
+
               <Typography variant="body1" paragraph>
                 {selectedEvent.description}
               </Typography>
@@ -1213,6 +1289,29 @@ export default function CalendarPage() {
               <MenuItem value="Highlight">Highlight / 精选</MenuItem>
               <MenuItem value="Cancelled">Cancelled / 已取消</MenuItem>
             </TextField>
+            <TextField
+              select
+              label="Event Type / 活动类型"
+              value={formData.event_type}
+              onChange={handleFormChange('event_type')}
+              fullWidth
+            >
+              <MenuItem value="standard">Standard / 标准</MenuItem>
+              <MenuItem value="heylo">Heylo (Weekly Run) / Heylo周跑</MenuItem>
+              <MenuItem value="race">Race / 比赛</MenuItem>
+            </TextField>
+            {formData.event_type === 'heylo' && (
+              <TextField
+                label="Heylo Embed Code / Heylo嵌入代码"
+                value={formData.heylo_embed}
+                onChange={handleFormChange('heylo_embed')}
+                fullWidth
+                multiline
+                rows={4}
+                placeholder="Paste Heylo embed code here... / 在此粘贴Heylo嵌入代码..."
+                helperText="Paste the embed code from Heylo Pro admin panel. The event details will auto-display. / 从Heylo Pro管理面板粘贴嵌入代码，活动详情将自动显示。"
+              />
+            )}
           </Box>
         </DialogContent>
         <DialogActions>

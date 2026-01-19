@@ -13,6 +13,23 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  FormControl,
+  Grid,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tabs,
+  TextField,
+  Tooltip,
   Typography
 } from '@mui/material';
 import React, { useEffect, useState } from 'react';
@@ -20,121 +37,558 @@ import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 import MeetingMinutesEditor from '../components/MeetingMinutesEditor';
 import { useAuth } from '../context/AuthContext';
-import { getPendingMembers, approveMember, rejectMember, getMemberByFirebaseUid } from '../api/members';
+import { getPendingMembers, approveMember, rejectMember, getMemberByFirebaseUid, getAllMembers, promoteToCommittee, demoteFromCommittee } from '../api/members';
+import { createEvent, getAllEvents, updateEvent, deleteEvent } from '../api/events';
+import { getDonationSummary } from '../api/donors';
+import { getAllBanners, createBanner, updateBanner, deleteBanner } from '../api/banners';
+import { getAllSections, createSection, updateSection, deleteSection } from '../api/homepageSections';
+import { getPendingActivities, verifyActivity, getMemberActivities } from '../api/activities';
 import { committeeMembers } from '../data/committeeMembers';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import PeopleIcon from '@mui/icons-material/People';
+import EventIcon from '@mui/icons-material/Event';
+import EmailIcon from '@mui/icons-material/Email';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import DescriptionIcon from '@mui/icons-material/Description';
+import ImageIcon from '@mui/icons-material/Image';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+
+function TabPanel({ children, value, index, ...other }) {
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`admin-tabpanel-${index}`}
+      aria-labelledby={`admin-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
+}
 
 export default function AdminPanelPage() {
   const { currentUser } = useAuth();
+  const [tabValue, setTabValue] = useState(0);
   const [pendingMembers, setPendingMembers] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [donationStats, setDonationStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
-  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, memberId: null, memberName: '' });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, id: null, name: '' });
   const [successMessage, setSuccessMessage] = useState('');
   const [isCommittee, setIsCommittee] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false); // True only for full admin status
   const [currentMemberData, setCurrentMemberData] = useState(null);
 
-  // Check if current user is committee member
+  // Activity verification state
+  const [pendingActivities, setPendingActivities] = useState([]);
+  const [activityDetailsOpen, setActivityDetailsOpen] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [selectedActivityMember, setSelectedActivityMember] = useState(null);
+  const [selectedMemberActivities, setSelectedMemberActivities] = useState([]);
+
+  // Event form state
+  const [eventDialogOpen, setEventDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [eventFormData, setEventFormData] = useState({
+    name: '',
+    chinese_name: '',
+    date: '',
+    time: '',
+    location: '',
+    chinese_location: '',
+    description: '',
+    chinese_description: '',
+    image: '',
+    signup_link: '',
+    status: 'Upcoming'
+  });
+
+  // Newsletter state
+  const [newsletterSubject, setNewsletterSubject] = useState('');
+  const [newsletterContent, setNewsletterContent] = useState('');
+  const [sendingNewsletter, setSendingNewsletter] = useState(false);
+
+  // Banner state
+  const [banners, setBanners] = useState([]);
+  const [bannerDialogOpen, setBannerDialogOpen] = useState(false);
+  const [editingBanner, setEditingBanner] = useState(null);
+  const [bannerFormData, setBannerFormData] = useState({
+    image_url: '',
+    alt_text: '',
+    link_path: '',
+    label_en: '',
+    label_cn: '',
+    display_order: 0,
+    is_active: true
+  });
+
+  // Section state
+  const [sections, setSections] = useState([]);
+  const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState(null);
+  const [sectionFormData, setSectionFormData] = useState({
+    title_en: '',
+    title_cn: '',
+    image_url: '',
+    link_path: '',
+    display_order: 0,
+    is_active: true
+  });
+
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
+
+  // Check if current user is committee member or admin
   useEffect(() => {
     const checkCommitteeStatus = async () => {
       if (!currentUser) {
         setIsCommittee(false);
+        setIsAdmin(false);
         return;
       }
 
       try {
-        // Get current user's member data
         const memberData = await getMemberByFirebaseUid(currentUser.uid);
         setCurrentMemberData(memberData);
-
-        // Check if user is admin status OR is in the committee list
-        const isAdmin = memberData.status === 'admin';
+        // Full admin status (can manage committee)
+        const hasAdminStatus = memberData.status === 'admin';
+        // Committee or admin status (can access admin panel)
+        const hasCommitteeStatus = memberData.status === 'committee';
         const isInCommitteeList = committeeMembers.some(
           cm => cm.name === memberData.display_name || cm.name === memberData.username
         );
-
-        setIsCommittee(isAdmin || isInCommitteeList);
+        setIsAdmin(hasAdminStatus);
+        setIsCommittee(hasAdminStatus || hasCommitteeStatus || isInCommitteeList);
       } catch (err) {
         console.error('Error checking committee status:', err);
         setIsCommittee(false);
+        setIsAdmin(false);
       }
     };
 
     checkCommitteeStatus();
   }, [currentUser]);
 
-  // Fetch pending members
+  // Fetch all admin data
   useEffect(() => {
-    const fetchPendingMembers = async () => {
-      if (!isCommittee) {
+    const fetchAdminData = async () => {
+      if (!isCommittee || !currentUser) {
         setLoading(false);
         return;
       }
 
       try {
-        const members = await getPendingMembers(currentUser.uid);
-        setPendingMembers(members);
+        const [pending, members, eventList, donations, bannerList, sectionList, activities] = await Promise.all([
+          getPendingMembers(currentUser.uid).catch(() => []),
+          getAllMembers(currentUser.uid).catch(() => []),
+          getAllEvents().catch(() => []),
+          getDonationSummary().catch(() => []),
+          getAllBanners(currentUser.uid).catch(() => []),
+          getAllSections(currentUser.uid).catch(() => []),
+          getPendingActivities(currentUser.uid).catch(() => [])
+        ]);
+
+        setPendingMembers(pending);
+        setAllMembers(members);
+        setEvents(eventList);
+        setDonationStats(donations);
+        setBanners(bannerList);
+        setSections(sectionList);
+        setPendingActivities(activities);
         setError('');
       } catch (err) {
-        console.error('Error fetching pending members:', err);
-        setError('Failed to load pending applications. Please try again.');
+        console.error('Error fetching admin data:', err);
+        setError('Failed to load admin data. Please try again.');
       } finally {
         setLoading(false);
       }
     };
 
     if (isCommittee) {
-      fetchPendingMembers();
+      fetchAdminData();
     }
-  }, [isCommittee]);
+  }, [isCommittee, currentUser]);
 
   const handleApprove = (memberId, memberName) => {
-    setConfirmDialog({
-      open: true,
-      action: 'approve',
-      memberId,
-      memberName
-    });
+    setConfirmDialog({ open: true, action: 'approve', id: memberId, name: memberName });
   };
 
   const handleReject = (memberId, memberName) => {
-    setConfirmDialog({
-      open: true,
-      action: 'reject',
-      memberId,
-      memberName
-    });
+    setConfirmDialog({ open: true, action: 'reject', id: memberId, name: memberName });
   };
 
   const handleConfirmAction = async () => {
-    const { action, memberId, memberName } = confirmDialog;
-    setActionLoading(memberId);
+    const { action, id, name } = confirmDialog;
+    setActionLoading(id);
     setConfirmDialog({ ...confirmDialog, open: false });
 
     try {
       if (action === 'approve') {
-        await approveMember(memberId, currentUser.uid);
-        setSuccessMessage(`Successfully approved ${memberName}!`);
-      } else {
-        await rejectMember(memberId, currentUser.uid);
-        setSuccessMessage(`Successfully rejected ${memberName}'s application.`);
+        await approveMember(id, currentUser.uid);
+        setSuccessMessage(`Successfully approved ${name}!`);
+        setPendingMembers(prev => prev.filter(m => m.id !== id));
+      } else if (action === 'reject') {
+        await rejectMember(id, currentUser.uid);
+        setSuccessMessage(`Successfully rejected ${name}'s application.`);
+        setPendingMembers(prev => prev.filter(m => m.id !== id));
+      } else if (action === 'deleteEvent') {
+        await deleteEvent(id, currentUser.uid);
+        setSuccessMessage('Event deleted successfully!');
+        setEvents(prev => prev.filter(e => e.id !== id));
+      } else if (action === 'deleteBanner') {
+        await deleteBanner(id, currentUser.uid);
+        setSuccessMessage('Banner deleted successfully!');
+        setBanners(prev => prev.filter(b => b.id !== id));
+      } else if (action === 'deleteSection') {
+        await deleteSection(id, currentUser.uid);
+        setSuccessMessage('Section deleted successfully!');
+        setSections(prev => prev.filter(s => s.id !== id));
       }
-
-      // Remove the member from the list
-      setPendingMembers(prev => prev.filter(m => m.id !== memberId));
-
-      // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
-      console.error(`Error ${action}ing member:`, err);
-      setError(`Failed to ${action} member. Please try again.`);
+      console.error(`Error performing action:`, err);
+      setError(`Failed to complete action. Please try again.`);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleCancelAction = () => {
-    setConfirmDialog({ open: false, action: null, memberId: null, memberName: '' });
+    setConfirmDialog({ open: false, action: null, id: null, name: '' });
+  };
+
+  // Event form handlers
+  const handleEventDialogOpen = (event = null) => {
+    if (event) {
+      setEditingEvent(event);
+      setEventFormData({
+        name: event.name || '',
+        chinese_name: event.chinese_name || '',
+        date: event.date || '',
+        time: event.time || '',
+        location: event.location || '',
+        chinese_location: event.chinese_location || '',
+        description: event.description || '',
+        chinese_description: event.chinese_description || '',
+        image: event.image || '',
+        signup_link: event.signup_link || '',
+        status: event.status || 'Upcoming'
+      });
+    } else {
+      setEditingEvent(null);
+      setEventFormData({
+        name: '',
+        chinese_name: '',
+        date: new Date().toISOString().split('T')[0],
+        time: '',
+        location: '',
+        chinese_location: '',
+        description: '',
+        chinese_description: '',
+        image: '',
+        signup_link: '',
+        status: 'Upcoming'
+      });
+    }
+    setEventDialogOpen(true);
+  };
+
+  const handleEventDialogClose = () => {
+    setEventDialogOpen(false);
+    setEditingEvent(null);
+  };
+
+  const handleEventFormChange = (e) => {
+    const { name, value } = e.target;
+    setEventFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveEvent = async () => {
+    setActionLoading('event');
+    try {
+      if (editingEvent) {
+        const updated = await updateEvent(editingEvent.id, eventFormData, currentUser.uid);
+        setEvents(prev => prev.map(e => e.id === editingEvent.id ? updated : e));
+        setSuccessMessage('Event updated successfully!');
+      } else {
+        const created = await createEvent(eventFormData, currentUser.uid);
+        setEvents(prev => [created, ...prev]);
+        setSuccessMessage('Event created successfully!');
+      }
+      handleEventDialogClose();
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error saving event:', err);
+      setError('Failed to save event. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteEvent = (eventId, eventName) => {
+    setConfirmDialog({ open: true, action: 'deleteEvent', id: eventId, name: eventName });
+  };
+
+  // Banner form handlers
+  const handleBannerDialogOpen = (banner = null) => {
+    if (banner) {
+      setEditingBanner(banner);
+      setBannerFormData({
+        image_url: banner.image_url || '',
+        alt_text: banner.alt_text || '',
+        link_path: banner.link_path || '',
+        label_en: banner.label_en || '',
+        label_cn: banner.label_cn || '',
+        display_order: banner.display_order || 0,
+        is_active: banner.is_active !== false
+      });
+    } else {
+      setEditingBanner(null);
+      setBannerFormData({
+        image_url: '',
+        alt_text: '',
+        link_path: '',
+        label_en: '',
+        label_cn: '',
+        display_order: banners.length,
+        is_active: true
+      });
+    }
+    setBannerDialogOpen(true);
+  };
+
+  const handleBannerDialogClose = () => {
+    setBannerDialogOpen(false);
+    setEditingBanner(null);
+  };
+
+  const handleBannerFormChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setBannerFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleSaveBanner = async () => {
+    setActionLoading('banner');
+    try {
+      if (editingBanner) {
+        const updated = await updateBanner(editingBanner.id, bannerFormData, currentUser.uid);
+        setBanners(prev => prev.map(b => b.id === editingBanner.id ? updated : b));
+        setSuccessMessage('Banner updated successfully!');
+      } else {
+        const created = await createBanner(bannerFormData, currentUser.uid);
+        setBanners(prev => [...prev, created]);
+        setSuccessMessage('Banner created successfully!');
+      }
+      handleBannerDialogClose();
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error saving banner:', err);
+      setError('Failed to save banner. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteBanner = (bannerId, bannerLabel) => {
+    setConfirmDialog({ open: true, action: 'deleteBanner', id: bannerId, name: bannerLabel || `Banner #${bannerId}` });
+  };
+
+  // Section form handlers
+  const handleSectionDialogOpen = (section = null) => {
+    if (section) {
+      setEditingSection(section);
+      setSectionFormData({
+        title_en: section.title_en || '',
+        title_cn: section.title_cn || '',
+        image_url: section.image_url || '',
+        link_path: section.link_path || '',
+        display_order: section.display_order || 0,
+        is_active: section.is_active !== false
+      });
+    } else {
+      setEditingSection(null);
+      setSectionFormData({
+        title_en: '',
+        title_cn: '',
+        image_url: '',
+        link_path: '',
+        display_order: sections.length,
+        is_active: true
+      });
+    }
+    setSectionDialogOpen(true);
+  };
+
+  const handleSectionDialogClose = () => {
+    setSectionDialogOpen(false);
+    setEditingSection(null);
+  };
+
+  const handleSectionFormChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setSectionFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleSaveSection = async () => {
+    setActionLoading('section');
+    try {
+      if (editingSection) {
+        const updated = await updateSection(editingSection.id, sectionFormData, currentUser.uid);
+        setSections(prev => prev.map(s => s.id === editingSection.id ? updated : s));
+        setSuccessMessage('Section updated successfully!');
+      } else {
+        const created = await createSection(sectionFormData, currentUser.uid);
+        setSections(prev => [...prev, created]);
+        setSuccessMessage('Section created successfully!');
+      }
+      handleSectionDialogClose();
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error saving section:', err);
+      setError('Failed to save section. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteSection = (sectionId, sectionTitle) => {
+    setConfirmDialog({ open: true, action: 'deleteSection', id: sectionId, name: sectionTitle || `Section #${sectionId}` });
+  };
+
+  // Newsletter handler (placeholder - actual email sending would require backend integration)
+  const handleSendNewsletter = async () => {
+    if (!newsletterSubject || !newsletterContent) {
+      setError('Please fill in both subject and content for the newsletter.');
+      return;
+    }
+    setSendingNewsletter(true);
+    try {
+      // TODO: Integrate with email service (SendGrid, AWS SES, etc.)
+      // For now, just show a success message
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setSuccessMessage('Newsletter feature is in development. Email integration coming soon!');
+      setNewsletterSubject('');
+      setNewsletterContent('');
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      setError('Failed to send newsletter. Please try again.');
+    } finally {
+      setSendingNewsletter(false);
+    }
+  };
+
+  // Activity verification handlers
+  const handleViewActivityDetails = async (activity) => {
+    setSelectedActivity(activity);
+    try {
+      // Find the member for this activity
+      const member = allMembers.find(m => m.id === activity.member_id);
+      setSelectedActivityMember(member);
+      // Get all activities for this member
+      const memberActivities = await getMemberActivities(activity.member_id);
+      setSelectedMemberActivities(memberActivities);
+    } catch (err) {
+      console.error('Error fetching activity details:', err);
+    }
+    setActivityDetailsOpen(true);
+  };
+
+  const handleVerifyActivity = async (activityId, approved, rejectionReason = null) => {
+    setActionLoading(`activity-${activityId}`);
+    try {
+      await verifyActivity(activityId, approved, rejectionReason, currentUser.uid);
+      setSuccessMessage(`Activity ${approved ? 'verified' : 'rejected'} successfully!`);
+      // Remove from pending list
+      setPendingActivities(prev => prev.filter(a => a.id !== activityId));
+      setActivityDetailsOpen(false);
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error verifying activity:', err);
+      setError('Failed to verify activity. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Committee management handlers (admin only)
+  const handlePromoteToCommittee = async (memberId, memberName) => {
+    setActionLoading(`promote-${memberId}`);
+    try {
+      await promoteToCommittee(memberId, currentUser.uid);
+      setSuccessMessage(`${memberName} promoted to committee successfully!`);
+      // Update member status in the list
+      setAllMembers(prev => prev.map(m =>
+        m.id === memberId ? { ...m, status: 'committee' } : m
+      ));
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error promoting member:', err);
+      setError('Failed to promote member. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDemoteFromCommittee = async (memberId, memberName) => {
+    setActionLoading(`demote-${memberId}`);
+    try {
+      await demoteFromCommittee(memberId, currentUser.uid);
+      setSuccessMessage(`${memberName} demoted to runner successfully!`);
+      // Update member status in the list
+      setAllMembers(prev => prev.map(m =>
+        m.id === memberId ? { ...m, status: 'runner' } : m
+      ));
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (err) {
+      console.error('Error demoting member:', err);
+      setError('Failed to demote member. Please try again.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Analytics calculations
+  const getMemberStats = () => {
+    const total = allMembers.length;
+    const active = allMembers.filter(m => m.status === 'runner' || m.status === 'admin' || m.status === 'committee').length;
+    const pending = pendingMembers.length;
+    const admins = allMembers.filter(m => m.status === 'admin').length;
+    const committee = allMembers.filter(m => m.status === 'committee').length;
+    return { total, active, pending, admins, committee };
+  };
+
+  const getEventStats = () => {
+    const total = events.length;
+    const upcoming = events.filter(e => e.status === 'Upcoming').length;
+    const highlights = events.filter(e => e.status === 'Highlight').length;
+    return { total, upcoming, highlights };
+  };
+
+  const getDonationTotals = () => {
+    const individual = donationStats.find(d => d.donor_type === 'individual') || { total_amount: 0, donor_count: 0 };
+    const enterprise = donationStats.find(d => d.donor_type === 'enterprise') || { total_amount: 0, donor_count: 0 };
+    return {
+      total: parseFloat(individual.total_amount || 0) + parseFloat(enterprise.total_amount || 0),
+      individualTotal: parseFloat(individual.total_amount || 0),
+      enterpriseTotal: parseFloat(enterprise.total_amount || 0),
+      donorCount: (individual.donor_count || 0) + (enterprise.donor_count || 0)
+    };
   };
 
   if (!currentUser) {
@@ -159,7 +613,7 @@ export default function AdminPanelPage() {
         <Logo />
         <NavigationButtons />
         <Container maxWidth="xl" sx={{ px: 2, mt: 4, display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress />
+          <CircularProgress sx={{ color: '#FFA500' }} />
         </Container>
       </Box>
     );
@@ -181,6 +635,10 @@ export default function AdminPanelPage() {
     );
   }
 
+  const memberStats = getMemberStats();
+  const eventStats = getEventStats();
+  const donationTotals = getDonationTotals();
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
       <Logo />
@@ -197,133 +655,1192 @@ export default function AdminPanelPage() {
             textAlign: 'center'
           }}
         >
-          Admin Panel - Pending Applications
+          Admin Dashboard
           <br />
-          管理面板 - 待审核申请
+          管理面板
         </Typography>
 
         {successMessage && (
-          <Alert severity="success" sx={{ mb: 3 }}>
+          <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccessMessage('')}>
             {successMessage}
           </Alert>
         )}
 
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
 
-        {pendingMembers.length === 0 ? (
-          <Alert severity="info">
-            No pending applications at this time.
-            <br />
-            目前没有待审核的申请。
-          </Alert>
-        ) : (
-          <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
-            {pendingMembers.map((member) => (
-              <Card key={member.id} sx={{ border: '1px solid #FFA500' }}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="h6" component="div">
-                      {member.display_name || member.username}
-                    </Typography>
-                    <Chip label="Pending" color="warning" size="small" />
-                  </Box>
+        {/* Tabbed Interface */}
+        <Paper sx={{ width: '100%', mb: 3 }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              borderBottom: 1,
+              borderColor: 'divider',
+              '& .MuiTab-root': {
+                minHeight: 64,
+                textTransform: 'none',
+                fontWeight: 500,
+              },
+              '& .Mui-selected': {
+                color: '#FFA500 !important',
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#FFA500',
+              },
+            }}
+          >
+            <Tab icon={<PeopleIcon />} label="Members" iconPosition="start" />
+            <Tab icon={<DirectionsRunIcon />} label={`Activities${pendingActivities.length > 0 ? ` (${pendingActivities.length})` : ''}`} iconPosition="start" />
+            <Tab icon={<EventIcon />} label="Events" iconPosition="start" />
+            <Tab icon={<ImageIcon />} label="Banners" iconPosition="start" />
+            <Tab icon={<ViewModuleIcon />} label="Sections" iconPosition="start" />
+            <Tab icon={<EmailIcon />} label="Newsletter" iconPosition="start" />
+            <Tab icon={<BarChartIcon />} label="Analytics" iconPosition="start" />
+            <Tab icon={<DescriptionIcon />} label="Meeting Notes" iconPosition="start" />
+            {isAdmin && <Tab icon={<AdminPanelSettingsIcon />} label="Committee Mgmt" iconPosition="start" />}
+          </Tabs>
+        </Paper>
 
-                  <Typography color="text.secondary" gutterBottom>
-                    <strong>Email:</strong> {member.email}
-                  </Typography>
+        {/* Tab 0: Manage Members */}
+        <TabPanel value={tabValue} index={0}>
+          <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+            Pending Applications ({pendingMembers.length})
+          </Typography>
 
-                  {member.nyrr_member_id && (
+          {pendingMembers.length === 0 ? (
+            <Alert severity="info">
+              No pending applications at this time. / 目前没有待审核的申请。
+            </Alert>
+          ) : (
+            <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+              {pendingMembers.map((member) => (
+                <Card key={member.id} sx={{ border: '1px solid #FFA500' }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6">{member.display_name || member.username}</Typography>
+                      <Chip label="Pending" color="warning" size="small" />
+                    </Box>
                     <Typography color="text.secondary" gutterBottom>
-                      <strong>NYRR ID:</strong> {member.nyrr_member_id}
+                      <strong>Email:</strong> {member.email}
                     </Typography>
-                  )}
-
-                  {member.phone && (
+                    {member.nyrr_member_id && (
+                      <Typography color="text.secondary" gutterBottom>
+                        <strong>NYRR ID:</strong> {member.nyrr_member_id}
+                      </Typography>
+                    )}
                     <Typography color="text.secondary" gutterBottom>
-                      <strong>Phone:</strong> {member.phone}
+                      <strong>Applied:</strong> {new Date(member.created_at).toLocaleString()}
                     </Typography>
-                  )}
+                  </CardContent>
+                  <CardActions sx={{ justifyContent: 'flex-end', px: 2, pb: 2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => handleReject(member.id, member.display_name || member.username)}
+                      disabled={actionLoading === member.id}
+                    >
+                      {actionLoading === member.id ? <CircularProgress size={20} /> : 'Reject'}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => handleApprove(member.id, member.display_name || member.username)}
+                      disabled={actionLoading === member.id}
+                      sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+                    >
+                      {actionLoading === member.id ? <CircularProgress size={20} /> : 'Approve'}
+                    </Button>
+                  </CardActions>
+                </Card>
+              ))}
+            </Box>
+          )}
 
-                  <Typography color="text.secondary" gutterBottom>
-                    <strong>Applied:</strong> {new Date(member.created_at).toLocaleString()}
-                  </Typography>
-                </CardContent>
+          <Typography variant="h5" sx={{ fontWeight: 600, mt: 5, mb: 3 }}>
+            All Members ({allMembers.length})
+          </Typography>
 
-                <CardActions sx={{ justifyContent: 'flex-end', px: 2, pb: 2 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    onClick={() => handleReject(member.id, member.display_name || member.username)}
-                    disabled={actionLoading === member.id}
-                  >
-                    {actionLoading === member.id ? <CircularProgress size={20} /> : 'Reject 拒绝'}
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={() => handleApprove(member.id, member.display_name || member.username)}
-                    disabled={actionLoading === member.id}
-                    sx={{
-                      backgroundColor: '#FFA500',
-                      '&:hover': { backgroundColor: '#FF8C00' }
-                    }}
-                  >
-                    {actionLoading === member.id ? <CircularProgress size={20} /> : 'Approve 批准'}
-                  </Button>
-                </CardActions>
-              </Card>
-            ))}
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: 'rgba(255, 165, 0, 0.1)' }}>
+                  <TableCell><strong>Name</strong></TableCell>
+                  <TableCell><strong>Email</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell><strong>Joined</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {allMembers.slice(0, 20).map((member) => (
+                  <TableRow key={member.id} hover>
+                    <TableCell>{member.display_name || member.username}</TableCell>
+                    <TableCell>{member.email}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={member.status}
+                        size="small"
+                        color={
+                          member.status === 'admin' ? 'primary' :
+                          member.status === 'committee' ? 'secondary' :
+                          member.status === 'runner' ? 'success' :
+                          member.status === 'pending' ? 'warning' : 'default'
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          {allMembers.length > 20 && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+              Showing 20 of {allMembers.length} members
+            </Typography>
+          )}
+        </TabPanel>
+
+        {/* Tab 1: Activity Verification */}
+        <TabPanel value={tabValue} index={1}>
+          <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+            Pending Activity Verification ({pendingActivities.length})
+          </Typography>
+
+          {pendingActivities.length === 0 ? (
+            <Alert severity="info">
+              No pending activities awaiting verification. / 没有待验证的活动。
+            </Alert>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: 'rgba(255, 165, 0, 0.1)' }}>
+                    <TableCell><strong>Member</strong></TableCell>
+                    <TableCell><strong>Activity #</strong></TableCell>
+                    <TableCell><strong>Event Name</strong></TableCell>
+                    <TableCell><strong>Date</strong></TableCell>
+                    <TableCell><strong>Submitted</strong></TableCell>
+                    <TableCell align="right"><strong>Actions</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {pendingActivities.map((activity) => {
+                    const member = allMembers.find(m => m.id === activity.member_id);
+                    return (
+                      <TableRow key={activity.id} hover>
+                        <TableCell>{member?.display_name || member?.username || `Member #${activity.member_id}`}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={`Run ${activity.activity_number}`}
+                            size="small"
+                            color={activity.activity_number === 1 ? 'primary' : 'secondary'}
+                          />
+                        </TableCell>
+                        <TableCell>{activity.event_name}</TableCell>
+                        <TableCell>{activity.event_date}</TableCell>
+                        <TableCell>
+                          {activity.created_at ? new Date(activity.created_at).toLocaleDateString() : 'N/A'}
+                        </TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="View Details & Verify">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleViewActivityDetails(activity)}
+                              color="primary"
+                            >
+                              <CheckIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Reject">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleVerifyActivity(activity.id, false, 'Activity not verified')}
+                              disabled={actionLoading === `activity-${activity.id}`}
+                            >
+                              {actionLoading === `activity-${activity.id}` ?
+                                <CircularProgress size={16} /> :
+                                <CloseIcon fontSize="small" color="error" />
+                              }
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </TabPanel>
+
+        {/* Tab 2: Create/Manage Events */}
+        <TabPanel value={tabValue} index={2}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              Manage Events
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={() => handleEventDialogOpen()}
+              sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+            >
+              + Create Event
+            </Button>
           </Box>
-        )}
 
-        {/* Meeting Minutes Section */}
-        <MeetingMinutesEditor firebaseUid={currentUser?.uid} />
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: 'rgba(255, 165, 0, 0.1)' }}>
+                  <TableCell><strong>Event Name</strong></TableCell>
+                  <TableCell><strong>Date</strong></TableCell>
+                  <TableCell><strong>Location</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell align="right"><strong>Actions</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {events.map((event) => (
+                  <TableRow key={event.id} hover>
+                    <TableCell>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>{event.name}</Typography>
+                        {event.chinese_name && (
+                          <Typography variant="caption" color="text.secondary">{event.chinese_name}</Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell>{event.date} {event.time}</TableCell>
+                    <TableCell>{event.location || 'TBD'}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={event.status}
+                        size="small"
+                        color={event.status === 'Upcoming' ? 'primary' : event.status === 'Highlight' ? 'success' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => handleEventDialogOpen(event)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" onClick={() => handleDeleteEvent(event.id, event.name)}>
+                          <DeleteIcon fontSize="small" color="error" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        {/* Tab 3: Manage Banners */}
+        <TabPanel value={tabValue} index={3}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              Manage Homepage Banners
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={() => handleBannerDialogOpen()}
+              sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+            >
+              + Add Banner
+            </Button>
+          </Box>
+
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Banners appear in the carousel on the homepage. Set display order to control the sequence.
+            <br />
+            横幅出现在主页的轮播图中。设置显示顺序以控制序列。
+          </Alert>
+
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: 'rgba(255, 165, 0, 0.1)' }}>
+                  <TableCell><strong>Preview</strong></TableCell>
+                  <TableCell><strong>Label</strong></TableCell>
+                  <TableCell><strong>Link</strong></TableCell>
+                  <TableCell><strong>Order</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell align="right"><strong>Actions</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {banners.map((banner) => (
+                  <TableRow key={banner.id} hover>
+                    <TableCell>
+                      <Box
+                        component="img"
+                        src={banner.image_url}
+                        alt={banner.alt_text || 'Banner preview'}
+                        sx={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 1 }}
+                        onError={(e) => { e.target.src = '/placeholder-banner.png'; }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>{banner.label_en || 'No label'}</Typography>
+                        {banner.label_cn && (
+                          <Typography variant="caption" color="text.secondary">{banner.label_cn}</Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell>{banner.link_path || 'No link'}</TableCell>
+                    <TableCell>{banner.display_order}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={banner.is_active ? 'Active' : 'Inactive'}
+                        size="small"
+                        color={banner.is_active ? 'success' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => handleBannerDialogOpen(banner)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" onClick={() => handleDeleteBanner(banner.id, banner.label_en)}>
+                          <DeleteIcon fontSize="small" color="error" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {banners.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                      <Typography color="text.secondary">
+                        No banners configured. Add a banner to display on the homepage.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        {/* Tab 4: Manage Sections */}
+        <TabPanel value={tabValue} index={4}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              Manage Homepage Sections
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={() => handleSectionDialogOpen()}
+              sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+            >
+              + Add Section
+            </Button>
+          </Box>
+
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Sections appear on the homepage below the banner carousel. Set display order to control the sequence.
+            <br />
+            板块显示在主页横幅轮播图下方。设置显示顺序以控制序列。
+          </Alert>
+
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: 'rgba(255, 165, 0, 0.1)' }}>
+                  <TableCell><strong>Preview</strong></TableCell>
+                  <TableCell><strong>Title (EN/CN)</strong></TableCell>
+                  <TableCell><strong>Link</strong></TableCell>
+                  <TableCell><strong>Order</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell align="right"><strong>Actions</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sections.map((section) => (
+                  <TableRow key={section.id} hover>
+                    <TableCell>
+                      {section.image_url ? (
+                        <Box
+                          component="img"
+                          src={section.image_url}
+                          alt={section.title_en}
+                          sx={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 1 }}
+                          onError={(e) => { e.target.src = '/placeholder-section.png'; }}
+                        />
+                      ) : (
+                        <Box
+                          sx={{
+                            width: 100,
+                            height: 60,
+                            backgroundColor: '#4a4a4a',
+                            borderRadius: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Typography variant="caption" color="text.secondary">No Image</Typography>
+                        </Box>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>{section.title_en}</Typography>
+                        {section.title_cn && (
+                          <Typography variant="caption" color="text.secondary">{section.title_cn}</Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell>{section.link_path}</TableCell>
+                    <TableCell>{section.display_order}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={section.is_active ? 'Active' : 'Inactive'}
+                        size="small"
+                        color={section.is_active ? 'success' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => handleSectionDialogOpen(section)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" onClick={() => handleDeleteSection(section.id, section.title_en)}>
+                          <DeleteIcon fontSize="small" color="error" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {sections.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                      <Typography color="text.secondary">
+                        No sections configured. Add a section to display on the homepage.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        {/* Tab 5: Send Newsletter */}
+        <TabPanel value={tabValue} index={5}>
+          <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+            Send Newsletter
+          </Typography>
+
+          <Paper sx={{ p: 3 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              Newsletter functionality requires email service integration (coming soon).
+              <br />
+              邮件通知功能需要邮件服务集成（即将推出）。
+            </Alert>
+
+            <TextField
+              fullWidth
+              label="Subject / 主题"
+              value={newsletterSubject}
+              onChange={(e) => setNewsletterSubject(e.target.value)}
+              margin="normal"
+            />
+
+            <TextField
+              fullWidth
+              label="Content / 内容"
+              value={newsletterContent}
+              onChange={(e) => setNewsletterContent(e.target.value)}
+              margin="normal"
+              multiline
+              rows={8}
+              placeholder="Write your newsletter content here... / 在此输入邮件内容..."
+            />
+
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="contained"
+                onClick={handleSendNewsletter}
+                disabled={sendingNewsletter || !newsletterSubject || !newsletterContent}
+                sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+              >
+                {sendingNewsletter ? <CircularProgress size={24} /> : 'Send Newsletter'}
+              </Button>
+            </Box>
+          </Paper>
+        </TabPanel>
+
+        {/* Tab 6: View Analytics */}
+        <TabPanel value={tabValue} index={6}>
+          <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+            Club Analytics
+          </Typography>
+
+          <Grid container spacing={3}>
+            {/* Member Stats */}
+            <Grid item xs={12} md={6} lg={3}>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
+                <PeopleIcon sx={{ fontSize: 48, color: '#FFA500', mb: 1 }} />
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
+                  {memberStats.total}
+                </Typography>
+                <Typography variant="body1" color="text.secondary">Total Members</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {memberStats.active} active, {memberStats.pending} pending
+                </Typography>
+              </Paper>
+            </Grid>
+
+            {/* Event Stats */}
+            <Grid item xs={12} md={6} lg={3}>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
+                <EventIcon sx={{ fontSize: 48, color: '#FFA500', mb: 1 }} />
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
+                  {eventStats.total}
+                </Typography>
+                <Typography variant="body1" color="text.secondary">Total Events</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {eventStats.upcoming} upcoming, {eventStats.highlights} highlights
+                </Typography>
+              </Paper>
+            </Grid>
+
+            {/* Donation Stats */}
+            <Grid item xs={12} md={6} lg={3}>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
+                <Typography variant="h6" sx={{ color: '#FFA500', mb: 1 }}>$</Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
+                  {donationTotals.total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </Typography>
+                <Typography variant="body1" color="text.secondary">Total Donations</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  From {donationTotals.donorCount} donors
+                </Typography>
+              </Paper>
+            </Grid>
+
+            {/* Admin Stats */}
+            <Grid item xs={12} md={6} lg={3}>
+              <Paper sx={{ p: 3, textAlign: 'center', border: '2px solid #FFA500' }}>
+                <Typography variant="h6" sx={{ color: '#FFA500', mb: 1 }}>Committee</Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFA500' }}>
+                  {memberStats.admins}
+                </Typography>
+                <Typography variant="body1" color="text.secondary">Admin Members</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Managing the club
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          {/* Donation Breakdown */}
+          <Paper sx={{ p: 3, mt: 4 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              Donation Breakdown
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <Box sx={{ p: 2, backgroundColor: 'rgba(255, 165, 0, 0.05)', borderRadius: 2 }}>
+                  <Typography variant="body2" color="text.secondary">Individual Donations</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    ${donationTotals.individualTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Box sx={{ p: 2, backgroundColor: 'rgba(255, 165, 0, 0.05)', borderRadius: 2 }}>
+                  <Typography variant="body2" color="text.secondary">Enterprise Donations</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    ${donationTotals.enterpriseTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        </TabPanel>
+
+        {/* Tab 7: Meeting Minutes */}
+        <TabPanel value={tabValue} index={7}>
+          <MeetingMinutesEditor firebaseUid={currentUser?.uid} />
+        </TabPanel>
+
+        {/* Tab 8: Committee Management (Admin Only) */}
+        {isAdmin && (
+          <TabPanel value={tabValue} index={8}>
+            <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+              Committee Management
+            </Typography>
+
+            <Alert severity="info" sx={{ mb: 3 }}>
+              As a full admin, you can promote runners to committee status and demote committee members back to runners.
+              Committee members can access most admin features but cannot manage other committee members.
+            </Alert>
+
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              Current Committee Members ({allMembers.filter(m => m.status === 'committee').length})
+            </Typography>
+
+            <TableContainer component={Paper} sx={{ mb: 4 }}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: 'rgba(156, 39, 176, 0.1)' }}>
+                    <TableCell><strong>Name</strong></TableCell>
+                    <TableCell><strong>Email</strong></TableCell>
+                    <TableCell><strong>Status</strong></TableCell>
+                    <TableCell><strong>Joined</strong></TableCell>
+                    <TableCell align="right"><strong>Actions</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {allMembers.filter(m => m.status === 'committee').map((member) => (
+                    <TableRow key={member.id} hover>
+                      <TableCell>{member.display_name || member.username}</TableCell>
+                      <TableCell>{member.email}</TableCell>
+                      <TableCell>
+                        <Chip label="committee" size="small" color="secondary" />
+                      </TableCell>
+                      <TableCell>
+                        {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          onClick={() => handleDemoteFromCommittee(member.id, member.display_name || member.username)}
+                          disabled={actionLoading === `demote-${member.id}`}
+                        >
+                          {actionLoading === `demote-${member.id}` ? <CircularProgress size={16} /> : 'Demote to Runner'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {allMembers.filter(m => m.status === 'committee').length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                        <Typography color="text.secondary">
+                          No committee members yet. Promote runners from the list below.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              Runners (Eligible for Promotion) ({allMembers.filter(m => m.status === 'runner').length})
+            </Typography>
+
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
+                    <TableCell><strong>Name</strong></TableCell>
+                    <TableCell><strong>Email</strong></TableCell>
+                    <TableCell><strong>Status</strong></TableCell>
+                    <TableCell><strong>Joined</strong></TableCell>
+                    <TableCell align="right"><strong>Actions</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {allMembers.filter(m => m.status === 'runner').slice(0, 20).map((member) => (
+                    <TableRow key={member.id} hover>
+                      <TableCell>{member.display_name || member.username}</TableCell>
+                      <TableCell>{member.email}</TableCell>
+                      <TableCell>
+                        <Chip label="runner" size="small" color="success" />
+                      </TableCell>
+                      <TableCell>
+                        {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="secondary"
+                          onClick={() => handlePromoteToCommittee(member.id, member.display_name || member.username)}
+                          disabled={actionLoading === `promote-${member.id}`}
+                        >
+                          {actionLoading === `promote-${member.id}` ? <CircularProgress size={16} /> : 'Promote to Committee'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {allMembers.filter(m => m.status === 'runner').length > 20 && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+                Showing 20 of {allMembers.filter(m => m.status === 'runner').length} runners
+              </Typography>
+            )}
+          </TabPanel>
+        )}
       </Container>
+
+      {/* Event Create/Edit Dialog */}
+      <Dialog open={eventDialogOpen} onClose={handleEventDialogClose} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {editingEvent ? 'Edit Event / 编辑活动' : 'Create Event / 创建活动'}
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Event Name (English)"
+                name="name"
+                value={eventFormData.name}
+                onChange={handleEventFormChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Event Name (Chinese)"
+                name="chinese_name"
+                value={eventFormData.chinese_name}
+                onChange={handleEventFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Date"
+                name="date"
+                type="date"
+                value={eventFormData.date}
+                onChange={handleEventFormChange}
+                InputLabelProps={{ shrink: true }}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Time"
+                name="time"
+                value={eventFormData.time}
+                onChange={handleEventFormChange}
+                placeholder="e.g., 8:00 AM"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Location (English)"
+                name="location"
+                value={eventFormData.location}
+                onChange={handleEventFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Location (Chinese)"
+                name="chinese_location"
+                value={eventFormData.chinese_location}
+                onChange={handleEventFormChange}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description (English)"
+                name="description"
+                value={eventFormData.description}
+                onChange={handleEventFormChange}
+                multiline
+                rows={3}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description (Chinese)"
+                name="chinese_description"
+                value={eventFormData.chinese_description}
+                onChange={handleEventFormChange}
+                multiline
+                rows={3}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Image URL"
+                name="image"
+                value={eventFormData.image}
+                onChange={handleEventFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Signup Link"
+                name="signup_link"
+                value={eventFormData.signup_link}
+                onChange={handleEventFormChange}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  name="status"
+                  value={eventFormData.status}
+                  onChange={handleEventFormChange}
+                  label="Status"
+                >
+                  <MenuItem value="Upcoming">Upcoming</MenuItem>
+                  <MenuItem value="Highlight">Highlight</MenuItem>
+                  <MenuItem value="Cancelled">Cancelled</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleEventDialogClose} disabled={actionLoading === 'event'}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEvent}
+            disabled={actionLoading === 'event' || !eventFormData.name || !eventFormData.date}
+            sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+          >
+            {actionLoading === 'event' ? <CircularProgress size={24} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Banner Create/Edit Dialog */}
+      <Dialog open={bannerDialogOpen} onClose={handleBannerDialogClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingBanner ? 'Edit Banner / 编辑横幅' : 'Add Banner / 添加横幅'}
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Image URL / 图片链接"
+                name="image_url"
+                value={bannerFormData.image_url}
+                onChange={handleBannerFormChange}
+                required
+                helperText="Use /filename.jpg for local images or full URL for external"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Label (English)"
+                name="label_en"
+                value={bannerFormData.label_en}
+                onChange={handleBannerFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Label (Chinese)"
+                name="label_cn"
+                value={bannerFormData.label_cn}
+                onChange={handleBannerFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Link Path / 链接路径"
+                name="link_path"
+                value={bannerFormData.link_path}
+                onChange={handleBannerFormChange}
+                placeholder="/about"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Alt Text"
+                name="alt_text"
+                value={bannerFormData.alt_text}
+                onChange={handleBannerFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Display Order / 显示顺序"
+                name="display_order"
+                type="number"
+                value={bannerFormData.display_order}
+                onChange={handleBannerFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  name="is_active"
+                  value={bannerFormData.is_active}
+                  onChange={(e) => setBannerFormData(prev => ({ ...prev, is_active: e.target.value }))}
+                  label="Status"
+                >
+                  <MenuItem value={true}>Active</MenuItem>
+                  <MenuItem value={false}>Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleBannerDialogClose} disabled={actionLoading === 'banner'}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveBanner}
+            disabled={actionLoading === 'banner' || !bannerFormData.image_url}
+            sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+          >
+            {actionLoading === 'banner' ? <CircularProgress size={24} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Section Create/Edit Dialog */}
+      <Dialog open={sectionDialogOpen} onClose={handleSectionDialogClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingSection ? 'Edit Section / 编辑板块' : 'Add Section / 添加板块'}
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Title (English) / 标题（英文）"
+                name="title_en"
+                value={sectionFormData.title_en}
+                onChange={handleSectionFormChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Title (Chinese) / 标题（中文）"
+                name="title_cn"
+                value={sectionFormData.title_cn}
+                onChange={handleSectionFormChange}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Image URL / 图片链接"
+                name="image_url"
+                value={sectionFormData.image_url}
+                onChange={handleSectionFormChange}
+                helperText="Use /filename.jpg for local images or full URL for external"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Link Path / 链接路径"
+                name="link_path"
+                value={sectionFormData.link_path}
+                onChange={handleSectionFormChange}
+                placeholder="/event-registration"
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Display Order / 显示顺序"
+                name="display_order"
+                type="number"
+                value={sectionFormData.display_order}
+                onChange={handleSectionFormChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  name="is_active"
+                  value={sectionFormData.is_active}
+                  onChange={(e) => setSectionFormData(prev => ({ ...prev, is_active: e.target.value }))}
+                  label="Status"
+                >
+                  <MenuItem value={true}>Active</MenuItem>
+                  <MenuItem value={false}>Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleSectionDialogClose} disabled={actionLoading === 'section'}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveSection}
+            disabled={actionLoading === 'section' || !sectionFormData.title_en || !sectionFormData.link_path}
+            sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+          >
+            {actionLoading === 'section' ? <CircularProgress size={24} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Activity Details Dialog */}
+      <Dialog open={activityDetailsOpen} onClose={() => setActivityDetailsOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Verify Activity / 验证活动
+        </DialogTitle>
+        <DialogContent>
+          {selectedActivityMember && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Member: {selectedActivityMember.display_name || selectedActivityMember.username}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Email: {selectedActivityMember.email}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Applied: {selectedActivityMember.created_at ? new Date(selectedActivityMember.created_at).toLocaleString() : 'N/A'}
+              </Typography>
+            </Box>
+          )}
+
+          {selectedActivity && (
+            <Paper sx={{ p: 2, mb: 3, backgroundColor: 'rgba(255, 165, 0, 0.05)' }}>
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                Activity #{selectedActivity.activity_number}
+              </Typography>
+              <Typography variant="body2"><strong>Event:</strong> {selectedActivity.event_name}</Typography>
+              <Typography variant="body2"><strong>Date:</strong> {selectedActivity.event_date}</Typography>
+              {selectedActivity.description && (
+                <Typography variant="body2"><strong>Description:</strong> {selectedActivity.description}</Typography>
+              )}
+              {selectedActivity.proof_url && (
+                <Typography variant="body2">
+                  <strong>Proof:</strong>{' '}
+                  <a href={selectedActivity.proof_url} target="_blank" rel="noopener noreferrer">
+                    View Proof
+                  </a>
+                </Typography>
+              )}
+            </Paper>
+          )}
+
+          {selectedMemberActivities.length > 0 && (
+            <Box>
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                All Activities for this Member:
+              </Typography>
+              {selectedMemberActivities.map(act => (
+                <Chip
+                  key={act.id}
+                  label={`Run ${act.activity_number}: ${act.status}`}
+                  size="small"
+                  color={
+                    act.status === 'verified' ? 'success' :
+                    act.status === 'pending' ? 'warning' : 'error'
+                  }
+                  sx={{ mr: 1, mb: 1 }}
+                />
+              ))}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setActivityDetailsOpen(false)}>
+            Cancel / 取消
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => selectedActivity && handleVerifyActivity(selectedActivity.id, false, 'Activity could not be verified')}
+            disabled={actionLoading === `activity-${selectedActivity?.id}`}
+          >
+            {actionLoading === `activity-${selectedActivity?.id}` ? <CircularProgress size={20} /> : 'Reject / 拒绝'}
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => selectedActivity && handleVerifyActivity(selectedActivity.id, true)}
+            disabled={actionLoading === `activity-${selectedActivity?.id}`}
+            sx={{ backgroundColor: '#4CAF50', '&:hover': { backgroundColor: '#45a049' } }}
+          >
+            {actionLoading === `activity-${selectedActivity?.id}` ? <CircularProgress size={20} /> : 'Verify / 验证'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialog.open} onClose={handleCancelAction}>
         <DialogTitle>
-          {confirmDialog.action === 'approve' ? 'Approve Application?' : 'Reject Application?'}
-          <br />
-          {confirmDialog.action === 'approve' ? '批准申请？' : '拒绝申请？'}
+          {confirmDialog.action === 'approve' ? 'Approve Application?' :
+           confirmDialog.action === 'reject' ? 'Reject Application?' :
+           confirmDialog.action === 'deleteEvent' ? 'Delete Event?' :
+           confirmDialog.action === 'deleteBanner' ? 'Delete Banner?' :
+           confirmDialog.action === 'deleteSection' ? 'Delete Section?' : 'Confirm Action'}
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {confirmDialog.action === 'approve' ? (
-              <>
-                Are you sure you want to approve {confirmDialog.memberName}'s application?
-                They will be granted access to all club features and receive an approval email.
-                <br /><br />
-                您确定要批准 {confirmDialog.memberName} 的申请吗？
-                他们将获得所有俱乐部功能的访问权限并收到批准邮件。
-              </>
-            ) : (
-              <>
-                Are you sure you want to reject {confirmDialog.memberName}'s application?
-                Their account will be deleted from the system.
-                <br /><br />
-                您确定要拒绝 {confirmDialog.memberName} 的申请吗？
-                他们的账户将从系统中删除。
-              </>
+            {confirmDialog.action === 'approve' && (
+              <>Are you sure you want to approve {confirmDialog.name}'s application?</>
+            )}
+            {confirmDialog.action === 'reject' && (
+              <>Are you sure you want to reject {confirmDialog.name}'s application?</>
+            )}
+            {confirmDialog.action === 'deleteEvent' && (
+              <>Are you sure you want to delete the event "{confirmDialog.name}"? This action cannot be undone.</>
+            )}
+            {confirmDialog.action === 'deleteBanner' && (
+              <>Are you sure you want to delete the banner "{confirmDialog.name}"? This action cannot be undone.</>
+            )}
+            {confirmDialog.action === 'deleteSection' && (
+              <>Are you sure you want to delete the section "{confirmDialog.name}"? This action cannot be undone.</>
             )}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancelAction}>
-            Cancel 取消
-          </Button>
+          <Button onClick={handleCancelAction}>Cancel</Button>
           <Button
             onClick={handleConfirmAction}
             variant="contained"
             color={confirmDialog.action === 'approve' ? 'primary' : 'error'}
             autoFocus
           >
-            {confirmDialog.action === 'approve' ? 'Approve 批准' : 'Reject 拒绝'}
+            Confirm
           </Button>
         </DialogActions>
       </Dialog>

@@ -34,30 +34,40 @@ export default function HighlightsPage() {
         const events = await getEventsByStatus('Highlight');
         console.log('Fetched highlight events from API:', events);
 
-        // Transform API response to match expected format
-        const transformedEvents = events.map(event => {
-          // Parse the event date and time for filtering
-          const [year, month, day] = event.date.split('-').map(Number);
-          const timeParts = event.time ? event.time.split(':').map(Number) : [0, 0];
-          const isPM = event.time ? event.time.toLowerCase().includes('pm') : false;
-          const eventDate = new Date(year, month - 1, day, isPM ? timeParts[0] + 12 : timeParts[0], timeParts[1] || 0);
+        // Get today's date for filtering past events
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-          return {
-            id: event.id,
-            name: event.name,
-            chineseName: event.chinese_name,
-            date: event.date,
-            time: event.time,
-            location: event.location,
-            chineseLocation: event.chinese_location,
-            description: event.description,
-            chineseDescription: event.chinese_description,
-            image: event.image || '/images/2025/20250517_bk_half.jpg',
-            signupLink: event.signup_link,
-            status: event.status,
-            parsedDate: eventDate
-          };
-        }).sort((a, b) => b.date.localeCompare(a.date)); // Sort in reverse chronological order
+        // Transform API response to match expected format and filter for past events only
+        const transformedEvents = events
+          .filter(event => {
+            // Only include events that have already passed
+            const eventDate = new Date(event.date);
+            return eventDate < today;
+          })
+          .map(event => {
+            // Parse the event date and time for filtering
+            const [year, month, day] = event.date.split('-').map(Number);
+            const timeParts = event.time ? event.time.split(':').map(Number) : [0, 0];
+            const isPM = event.time ? event.time.toLowerCase().includes('pm') : false;
+            const eventDate = new Date(year, month - 1, day, isPM ? timeParts[0] + 12 : timeParts[0], timeParts[1] || 0);
+
+            return {
+              id: event.id,
+              name: event.name,
+              chineseName: event.chinese_name,
+              date: event.date,
+              time: event.time,
+              location: event.location,
+              chineseLocation: event.chinese_location,
+              description: event.description,
+              chineseDescription: event.chinese_description,
+              image: event.image || '/images/2025/20250517_bk_half.jpg',
+              signupLink: event.signup_link,
+              status: event.status,
+              parsedDate: eventDate
+            };
+          }).sort((a, b) => b.date.localeCompare(a.date)); // Sort in reverse chronological order
 
         console.log('Transformed highlight events:', transformedEvents);
 

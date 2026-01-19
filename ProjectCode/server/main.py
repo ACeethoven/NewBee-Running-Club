@@ -1,23 +1,32 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Header
+from fastapi import FastAPI, Depends, HTTPException, status, Header, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 import os
+import uuid
+import base64
+from pathlib import Path
 
-from database import get_db, create_tables, Donor, Results, Member, Event, MeetingMinutes, Comment, Like, Reaction, EventCommentSettings, TempClubCredit
+from database import get_db, create_tables, Donor, Results, Member, Event, MeetingMinutes, Comment, Like, Reaction, EventCommentSettings, TempClubCredit, BannerImage, TrainingTip, TrainingTipUpvote, HomepageSection, MemberActivity
 from models import (
     DonorCreate, DonorUpdate, DonorResponse, DonorsListResponse, DonationSummary,
+    DonorPublicResponse, DonorLinkMemberRequest,
     MemberCreate, MemberUpdate, MemberResponse, MemberPublicResponse, MemberStatus,
-    FirebaseUserSync, JoinApplicationRequest,
-    EventCreate, EventUpdate, EventResponse, EventStatus,
+    FirebaseUserSync, JoinApplicationRequest, JoinApplicationWithActivities,
+    MemberActivityCreate, MemberActivityUpdate, MemberActivityResponse, ActivityVerifyRequest, ActivityStatus,
+    EventCreate, EventUpdate, EventResponse, EventStatus, EventType,
     MeetingMinutesCreate, MeetingMinutesUpdate, MeetingMinutesResponse,
     CommentCreate, CommentResponse, CommentWithModeration, CommentHideRequest,
     LikeCreate, LikeResponse, LikeCountResponse,
     ReactionCreate, ReactionCountResponse, EventReactionsResponse, ALLOWED_EMOJIS,
     EventCommentSettingsUpdate, EventCommentSettingsResponse,
     EventEngagementResponse, BatchEngagementRequest, BatchEngagementResponse,
-    TempClubCreditCreate, TempClubCreditUpdate, TempClubCreditResponse, CreditType
+    TempClubCreditCreate, TempClubCreditUpdate, TempClubCreditResponse, CreditType,
+    BannerImageCreate, BannerImageUpdate, BannerImageResponse, CarouselBannerResponse,
+    TrainingTipCreate, TrainingTipUpdate, TrainingTipResponse, TrainingTipPublicResponse, TrainingTipUpvoteResponse, TipStatus, TipCategory,
+    HomepageSectionCreate, HomepageSectionUpdate, HomepageSectionResponse, SectionReorderRequest
 )
 from email_service import EmailService
 import bcrypt
@@ -75,6 +84,37 @@ def get_current_admin(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required. You do not have permission to perform this action."
+        )
+
+    return member
+
+
+# Authorization dependency for committee or admin endpoints
+def get_current_committee_or_admin(
+    x_firebase_uid: Optional[str] = Header(None, alias="X-Firebase-UID"),
+    db: Session = Depends(get_db)
+) -> Member:
+    """
+    Verify that the request is from an authenticated committee member or admin.
+    Committee members can do most admin tasks except manage other committee/admin members.
+    """
+    if not x_firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Please log in."
+        )
+
+    member = db.query(Member).filter(Member.firebase_uid == x_firebase_uid).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication. User not found."
+        )
+
+    if member.status not in ['admin', 'committee']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Committee or admin access required. You do not have permission to perform this action."
         )
 
     return member
@@ -292,6 +332,70 @@ def get_all_donors(db: Session = Depends(get_db)):
         enterprise_donors=enterprise_donors
     )
 
+@app.get("/api/donors/stats/summary", response_model=List[DonationSummary])
+def get_donation_summary(db: Session = Depends(get_db)):
+    """Get donation statistics by donor type for stakeholder reporting"""
+    summary = db.query(
+        Donor.donor_type,
+        func.count(Donor.donation_id).label('donor_count'),
+        func.sum(Donor.amount).label('total_amount'),
+        func.avg(Donor.amount).label('average_amount'),
+        func.min(Donor.amount).label('min_amount'),
+        func.max(Donor.amount).label('max_amount')
+    ).group_by(Donor.donor_type).all()
+
+    return [
+        DonationSummary(
+            donor_type=row.donor_type,
+            donor_count=row.donor_count,
+            total_amount=row.total_amount,
+            average_amount=row.average_amount,
+            min_amount=row.min_amount,
+            max_amount=row.max_amount
+        ) for row in summary
+    ]
+
+
+@app.get("/api/donors/public", response_model=List[DonorPublicResponse])
+def get_public_donors(db: Session = Depends(get_db)):
+    """
+    Get donors for public display with privacy rules applied:
+    - Individual donors: hide amount, show date only
+    - Enterprise donors: show amount
+    - Respects linked member's show_in_donors setting
+    - Excludes anonymous donors
+    """
+    # Get all non-anonymous donors
+    donors = db.query(Donor).filter(
+        Donor.notes != "Anonymous Donor"
+    ).order_by(Donor.donation_date.desc(), Donor.name).all()
+
+    public_donors = []
+    for donor in donors:
+        # Check if linked to a member who has opted out of donor display
+        if donor.member_id:
+            linked_member = db.query(Member).filter(Member.id == donor.member_id).first()
+            if linked_member and not linked_member.show_in_donors:
+                continue  # Skip this donor
+
+        # Apply privacy rules: hide amount for individual donors
+        show_amount = donor.donor_type == 'enterprise' and not donor.hide_amount
+
+        public_donors.append(DonorPublicResponse(
+            donation_id=donor.donation_id,
+            donor_id=donor.donor_id,
+            name=donor.name,
+            donor_type=donor.donor_type,
+            donation_event=donor.donation_event,
+            amount=donor.amount if show_amount else None,
+            quantity=donor.quantity,
+            donation_date=donor.donation_date,
+            message=donor.message
+        ))
+
+    return public_donors
+
+
 @app.get("/api/donors/{donor_type}", response_model=List[DonorResponse])
 def get_donors_by_type(donor_type: str, db: Session = Depends(get_db)):
     """Get donors by type (individual or enterprise), sorted by donation_date (most recent first)"""
@@ -366,28 +470,38 @@ def delete_donor(donor_id: str, db: Session = Depends(get_db)):
     db.commit()
     return {"message": f"Donor {donor_id} deleted successfully"}
 
-@app.get("/api/donors/stats/summary", response_model=List[DonationSummary])
-def get_donation_summary(db: Session = Depends(get_db)):
-    """Get donation statistics by donor type for stakeholder reporting"""
-    summary = db.query(
-        Donor.donor_type,
-        func.count(Donor.donation_id).label('donor_count'),
-        func.sum(Donor.amount).label('total_amount'),
-        func.avg(Donor.amount).label('average_amount'),
-        func.min(Donor.amount).label('min_amount'),
-        func.max(Donor.amount).label('max_amount')
-    ).group_by(Donor.donor_type).all()
 
-    return [
-        DonationSummary(
-            donor_type=row.donor_type,
-            donor_count=row.donor_count,
-            total_amount=row.total_amount,
-            average_amount=row.average_amount,
-            min_amount=row.min_amount,
-            max_amount=row.max_amount
-        ) for row in summary
-    ]
+@app.put("/api/donors/{donor_id}/link-member")
+def link_donor_to_member(
+    donor_id: str,
+    request: DonorLinkMemberRequest,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Link a donor record to a member account (admin only)"""
+    donor = db.query(Donor).filter(Donor.donor_id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Donor with ID {donor_id} not found"
+        )
+
+    member = db.query(Member).filter(Member.id == request.member_id).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Member with ID {request.member_id} not found"
+        )
+
+    donor.member_id = request.member_id
+    db.commit()
+    db.refresh(donor)
+
+    return {
+        "message": f"Donor {donor.name} linked to member {member.display_name or member.username}",
+        "donor_id": donor_id,
+        "member_id": request.member_id
+    }
 
 
 # MEMBER ENDPOINTS
@@ -396,7 +510,7 @@ def get_donation_summary(db: Session = Depends(get_db)):
 def get_all_members(db: Session = Depends(get_db)):
     """Get all active members (public info only) - excludes pending and quit members"""
     members = db.query(Member).filter(
-        Member.status.in_(['runner', 'admin'])
+        Member.status.in_(['runner', 'committee', 'admin'])
     ).order_by(Member.display_name).all()
     return members
 
@@ -406,7 +520,7 @@ def get_members_for_credits(db: Session = Depends(get_db)):
     """Get members who opted to show in credits page"""
     members = db.query(Member).filter(
         Member.show_in_credits == True,
-        Member.status.in_(['runner', 'admin'])
+        Member.status.in_(['runner', 'committee', 'admin'])
     ).order_by(
         (Member.registration_credits + Member.checkin_credits +
          Member.volunteer_credits + Member.activity_credits).desc()
@@ -622,9 +736,9 @@ def get_member_by_firebase_uid(firebase_uid: str, db: Session = Depends(get_db))
 @app.get("/api/members/pending/list", response_model=List[MemberResponse])
 def get_pending_members(
     db: Session = Depends(get_db),
-    current_admin: Member = Depends(get_current_admin)
+    current_user: Member = Depends(get_current_committee_or_admin)
 ):
-    """Get all pending member applications (for admin panel) - Admin only"""
+    """Get all pending member applications (for admin panel) - Committee or Admin"""
     members = db.query(Member).filter(
         Member.status == 'pending'
     ).order_by(Member.created_at.desc()).all()
@@ -635,9 +749,9 @@ def get_pending_members(
 def approve_member(
     member_id: int,
     db: Session = Depends(get_db),
-    current_admin: Member = Depends(get_current_admin)
+    current_user: Member = Depends(get_current_committee_or_admin)
 ):
-    """Approve a pending member application (changes status to runner and sends notification) - Admin only"""
+    """Approve a pending member application (changes status to runner and sends notification) - Committee or Admin"""
     member = db.query(Member).filter(Member.id == member_id).first()
     if not member:
         raise HTTPException(
@@ -669,9 +783,9 @@ def approve_member(
 def reject_member(
     member_id: int,
     db: Session = Depends(get_db),
-    current_admin: Member = Depends(get_current_admin)
+    current_user: Member = Depends(get_current_committee_or_admin)
 ):
-    """Reject a pending member application (deletes the member record) - Admin only"""
+    """Reject a pending member application (deletes the member record) - Committee or Admin"""
     member = db.query(Member).filter(Member.id == member_id).first()
     if not member:
         raise HTTPException(
@@ -773,6 +887,215 @@ def submit_join_application(application: JoinApplicationRequest, db: Session = D
     }
 
 
+# COMMITTEE ROLE MANAGEMENT ENDPOINTS (Admin only)
+
+@app.put("/api/members/{member_id}/promote-to-committee")
+def promote_to_committee(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Promote a runner to committee status (admin only)"""
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Member with ID {member_id} not found"
+        )
+
+    if member.status not in ['runner', 'pending']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Can only promote runners or pending members to committee (current status: {member.status})"
+        )
+
+    member.status = 'committee'
+    db.commit()
+    db.refresh(member)
+    return {
+        "message": f"Member {member.display_name or member.username} promoted to committee",
+        "member_id": member_id,
+        "new_status": "committee"
+    }
+
+
+@app.put("/api/members/{member_id}/demote-from-committee")
+def demote_from_committee(
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Demote a committee member back to runner status (admin only)"""
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Member with ID {member_id} not found"
+        )
+
+    if member.status != 'committee':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Member is not a committee member (current status: {member.status})"
+        )
+
+    member.status = 'runner'
+    db.commit()
+    db.refresh(member)
+    return {
+        "message": f"Member {member.display_name or member.username} demoted to runner",
+        "member_id": member_id,
+        "new_status": "runner"
+    }
+
+
+@app.get("/api/members/committee/all", response_model=List[MemberPublicResponse])
+def get_all_committee_and_admins(db: Session = Depends(get_db)):
+    """Get all committee members and admins"""
+    members = db.query(Member).filter(
+        Member.status.in_(['admin', 'committee'])
+    ).order_by(Member.status.desc(), Member.display_name).all()
+    return members
+
+
+# MEMBER ACTIVITY ENDPOINTS (for two offline activities requirement)
+
+@app.get("/api/members/{member_id}/activities", response_model=List[MemberActivityResponse])
+def get_member_activities(
+    member_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a member's offline activity records"""
+    activities = db.query(MemberActivity).filter(
+        MemberActivity.member_id == member_id
+    ).order_by(MemberActivity.activity_number).all()
+    return activities
+
+
+@app.post("/api/members/{member_id}/activities", response_model=MemberActivityResponse)
+def submit_member_activity(
+    member_id: int,
+    activity: MemberActivityCreate,
+    db: Session = Depends(get_db)
+):
+    """Submit an offline activity record (part of join process)"""
+    # Verify member exists
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Member with ID {member_id} not found"
+        )
+
+    # Check if activity_number is already submitted
+    existing = db.query(MemberActivity).filter(
+        MemberActivity.member_id == member_id,
+        MemberActivity.activity_number == activity.activity_number
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Activity {activity.activity_number} already submitted for this member"
+        )
+
+    # Create the activity record
+    activity_data = activity.model_dump()
+    activity_data['member_id'] = member_id
+    activity_data['status'] = 'pending'
+
+    db_activity = MemberActivity(**activity_data)
+    db.add(db_activity)
+
+    # Update member's activities_completed count
+    member.activities_completed = db.query(MemberActivity).filter(
+        MemberActivity.member_id == member_id
+    ).count() + 1
+
+    db.commit()
+    db.refresh(db_activity)
+    return db_activity
+
+
+@app.put("/api/activities/{activity_id}/verify")
+def verify_activity(
+    activity_id: int,
+    request: ActivityVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: Member = Depends(get_current_committee_or_admin)
+):
+    """Verify or reject a member activity (committee or admin)"""
+    activity = db.query(MemberActivity).filter(MemberActivity.id == activity_id).first()
+    if not activity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Activity with ID {activity_id} not found"
+        )
+
+    if activity.status != 'pending':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Activity is already {activity.status}"
+        )
+
+    if request.approved:
+        activity.status = 'verified'
+    else:
+        activity.status = 'rejected'
+        activity.rejection_reason = request.rejection_reason
+
+    activity.verified_by = current_user.id
+    activity.verified_at = func.now()
+
+    db.commit()
+    db.refresh(activity)
+
+    return {
+        "message": f"Activity {'verified' if request.approved else 'rejected'}",
+        "activity_id": activity_id,
+        "status": activity.status
+    }
+
+
+@app.get("/api/activities/pending", response_model=List[MemberActivityResponse])
+def get_pending_activities(
+    db: Session = Depends(get_db),
+    current_user: Member = Depends(get_current_committee_or_admin)
+):
+    """Get all pending activities awaiting verification (committee or admin)"""
+    activities = db.query(MemberActivity).filter(
+        MemberActivity.status == 'pending'
+    ).order_by(MemberActivity.created_at.desc()).all()
+    return activities
+
+
+@app.delete("/api/activities/{activity_id}")
+def delete_activity(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user: Member = Depends(get_current_committee_or_admin)
+):
+    """Delete an activity record (committee or admin)"""
+    activity = db.query(MemberActivity).filter(MemberActivity.id == activity_id).first()
+    if not activity:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Activity with ID {activity_id} not found"
+        )
+
+    member_id = activity.member_id
+    db.delete(activity)
+
+    # Update member's activities_completed count
+    member = db.query(Member).filter(Member.id == member_id).first()
+    if member:
+        member.activities_completed = db.query(MemberActivity).filter(
+            MemberActivity.member_id == member_id
+        ).count()
+
+    db.commit()
+    return {"message": f"Activity {activity_id} deleted successfully"}
+
+
 # EVENT ENDPOINTS
 
 @app.get("/api/events", response_model=List[EventResponse])
@@ -816,13 +1139,15 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
 def create_event(
     event: EventCreate,
     db: Session = Depends(get_db),
-    current_admin: Member = Depends(get_current_admin)
+    current_user: Member = Depends(get_current_committee_or_admin)
 ):
-    """Create a new event (admin only)"""
+    """Create a new event (committee or admin)"""
     event_data = event.model_dump()
     # Convert enum to string value
     if 'status' in event_data and event_data['status']:
         event_data['status'] = event_data['status'].value
+    if 'event_type' in event_data and event_data['event_type']:
+        event_data['event_type'] = event_data['event_type'].value
 
     db_event = Event(**event_data)
     db.add(db_event)
@@ -836,9 +1161,9 @@ def update_event(
     event_id: int,
     event_update: EventUpdate,
     db: Session = Depends(get_db),
-    current_admin: Member = Depends(get_current_admin)
+    current_user: Member = Depends(get_current_committee_or_admin)
 ):
-    """Update an event (admin only)"""
+    """Update an event (committee or admin)"""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(
@@ -851,6 +1176,8 @@ def update_event(
     # Convert enum to string if status is being updated
     if 'status' in update_data and update_data['status']:
         update_data['status'] = update_data['status'].value
+    if 'event_type' in update_data and update_data['event_type']:
+        update_data['event_type'] = update_data['event_type'].value
 
     for field, value in update_data.items():
         setattr(event, field, value)
@@ -864,9 +1191,9 @@ def update_event(
 def delete_event(
     event_id: int,
     db: Session = Depends(get_db),
-    current_admin: Member = Depends(get_current_admin)
+    current_user: Member = Depends(get_current_committee_or_admin)
 ):
-    """Delete an event (admin only)"""
+    """Delete an event (committee or admin)"""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(
@@ -1720,6 +2047,543 @@ def delete_credit(
     db.delete(credit)
     db.commit()
     return {"message": f"Credit {credit_id} deleted successfully"}
+
+
+# BANNER IMAGE ENDPOINTS
+
+@app.get("/api/banners", response_model=List[BannerImageResponse])
+def get_active_banners(db: Session = Depends(get_db)):
+    """Get all active banner images, sorted by display order"""
+    banners = db.query(BannerImage).filter(
+        BannerImage.is_active == True
+    ).order_by(BannerImage.display_order).all()
+    return banners
+
+
+@app.get("/api/banners/all", response_model=List[BannerImageResponse])
+def get_all_banners(
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Get all banners including inactive ones (admin only)"""
+    banners = db.query(BannerImage).order_by(BannerImage.display_order).all()
+    return banners
+
+
+@app.get("/api/banners/carousel", response_model=List[CarouselBannerResponse])
+def get_carousel_banners(db: Session = Depends(get_db)):
+    """
+    Get carousel banners for homepage.
+    Returns merged list of:
+    1. Manual banners (active)
+    2. Events with 'Highlight' status (auto-fetched)
+    Sorted by display_order
+    """
+    carousel_items = []
+
+    # Get active manual banners
+    manual_banners = db.query(BannerImage).filter(
+        BannerImage.is_active == True
+    ).order_by(BannerImage.display_order).all()
+
+    for banner in manual_banners:
+        item = CarouselBannerResponse(
+            id=banner.id,
+            image_url=banner.image_url,
+            alt_text=banner.alt_text,
+            link_path=banner.link_path,
+            label_en=banner.label_en,
+            label_cn=banner.label_cn,
+            display_order=banner.display_order,
+            source_type=banner.source_type or 'manual',
+            event_id=banner.event_id
+        )
+
+        # If banner is linked to an event, populate event details
+        if banner.event_id and banner.event:
+            item.event_name = banner.event.name
+            item.event_chinese_name = banner.event.chinese_name
+            item.event_date = banner.event.date
+            item.event_time = banner.event.time
+            item.event_location = banner.event.location
+            item.event_description = banner.event.description
+            item.event_signup_link = banner.event.signup_link
+
+        carousel_items.append(item)
+
+    # Get highlight events that don't already have a banner
+    existing_event_ids = [b.event_id for b in manual_banners if b.event_id]
+    highlight_events = db.query(Event).filter(
+        Event.status == 'Highlight',
+        ~Event.id.in_(existing_event_ids) if existing_event_ids else True
+    ).order_by(Event.date.desc()).all()
+
+    # Add highlight events as carousel items
+    max_order = max([b.display_order for b in manual_banners], default=0)
+    for idx, event in enumerate(highlight_events):
+        item = CarouselBannerResponse(
+            id=event.id * -1,  # Negative ID to distinguish from banners
+            image_url=event.image or '/placeholder-event.png',
+            alt_text=event.name,
+            link_path=None,  # Will open event modal instead
+            label_en=event.name,
+            label_cn=event.chinese_name,
+            display_order=max_order + idx + 1,
+            source_type='event_highlight',
+            event_id=event.id,
+            event_name=event.name,
+            event_chinese_name=event.chinese_name,
+            event_date=event.date,
+            event_time=event.time,
+            event_location=event.location,
+            event_description=event.description,
+            event_signup_link=event.signup_link
+        )
+        carousel_items.append(item)
+
+    # Sort by display_order
+    carousel_items.sort(key=lambda x: x.display_order)
+
+    return carousel_items
+
+
+@app.get("/api/banners/{banner_id}", response_model=BannerImageResponse)
+def get_banner(banner_id: int, db: Session = Depends(get_db)):
+    """Get a specific banner by ID"""
+    banner = db.query(BannerImage).filter(BannerImage.id == banner_id).first()
+    if not banner:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Banner not found")
+    return banner
+
+
+@app.post("/api/banners", response_model=BannerImageResponse)
+def create_banner(
+    banner: BannerImageCreate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Create a new banner (admin only)"""
+    db_banner = BannerImage(**banner.model_dump())
+    db.add(db_banner)
+    db.commit()
+    db.refresh(db_banner)
+    return db_banner
+
+
+@app.put("/api/banners/{banner_id}", response_model=BannerImageResponse)
+def update_banner(
+    banner_id: int,
+    banner_update: BannerImageUpdate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Update a banner (admin only)"""
+    banner = db.query(BannerImage).filter(BannerImage.id == banner_id).first()
+    if not banner:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Banner not found")
+
+    update_data = banner_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(banner, field, value)
+
+    db.commit()
+    db.refresh(banner)
+    return banner
+
+
+@app.delete("/api/banners/{banner_id}")
+def delete_banner(
+    banner_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Delete a banner (admin only)"""
+    banner = db.query(BannerImage).filter(BannerImage.id == banner_id).first()
+    if not banner:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Banner not found")
+
+    db.delete(banner)
+    db.commit()
+    return {"message": f"Banner {banner_id} deleted successfully"}
+
+
+# HOMEPAGE SECTION ENDPOINTS
+
+@app.get("/api/homepage-sections", response_model=List[HomepageSectionResponse])
+def get_active_sections(db: Session = Depends(get_db)):
+    """Get all active homepage sections, sorted by display order"""
+    sections = db.query(HomepageSection).filter(
+        HomepageSection.is_active == True
+    ).order_by(HomepageSection.display_order).all()
+    return sections
+
+
+@app.get("/api/homepage-sections/all", response_model=List[HomepageSectionResponse])
+def get_all_sections(
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Get all homepage sections including inactive ones (admin only)"""
+    sections = db.query(HomepageSection).order_by(HomepageSection.display_order).all()
+    return sections
+
+
+@app.get("/api/homepage-sections/{section_id}", response_model=HomepageSectionResponse)
+def get_section(section_id: int, db: Session = Depends(get_db)):
+    """Get a specific homepage section by ID"""
+    section = db.query(HomepageSection).filter(HomepageSection.id == section_id).first()
+    if not section:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Section not found")
+    return section
+
+
+@app.post("/api/homepage-sections", response_model=HomepageSectionResponse)
+def create_section(
+    section: HomepageSectionCreate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Create a new homepage section (admin only)"""
+    db_section = HomepageSection(**section.model_dump())
+    db.add(db_section)
+    db.commit()
+    db.refresh(db_section)
+    return db_section
+
+
+@app.put("/api/homepage-sections/{section_id}", response_model=HomepageSectionResponse)
+def update_section(
+    section_id: int,
+    section_update: HomepageSectionUpdate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Update a homepage section (admin only)"""
+    section = db.query(HomepageSection).filter(HomepageSection.id == section_id).first()
+    if not section:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Section not found")
+
+    update_data = section_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(section, field, value)
+
+    db.commit()
+    db.refresh(section)
+    return section
+
+
+@app.delete("/api/homepage-sections/{section_id}")
+def delete_section(
+    section_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Delete a homepage section (admin only)"""
+    section = db.query(HomepageSection).filter(HomepageSection.id == section_id).first()
+    if not section:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Section not found")
+
+    db.delete(section)
+    db.commit()
+    return {"message": f"Section {section_id} deleted successfully"}
+
+
+@app.put("/api/homepage-sections/reorder")
+def reorder_sections(
+    request: SectionReorderRequest,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Reorder homepage sections (admin only)"""
+    for index, section_id in enumerate(request.section_ids):
+        section = db.query(HomepageSection).filter(HomepageSection.id == section_id).first()
+        if section:
+            section.display_order = index
+
+    db.commit()
+    return {"message": "Sections reordered successfully"}
+
+
+# IMAGE UPLOAD ENDPOINT
+
+# Mapping of file extensions to MIME types
+ALLOWED_IMAGE_EXTENSIONS = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+}
+
+@app.post("/api/upload/image")
+async def upload_image(
+    file: UploadFile = File(...),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Upload an image file (admin only). Returns base64 data URL for database storage."""
+    # Get file extension
+    file_ext = Path(file.filename).suffix.lower() if file.filename else ''
+
+    # Determine MIME type from extension or content_type
+    allowed_content_types = list(ALLOWED_IMAGE_EXTENSIONS.values())
+
+    if file.content_type in allowed_content_types:
+        mime_type = file.content_type
+    elif file_ext in ALLOWED_IMAGE_EXTENSIONS:
+        mime_type = ALLOWED_IMAGE_EXTENSIONS[file_ext]
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type not allowed. Allowed types: JPEG, PNG, GIF, WebP"
+        )
+
+    # Validate file size (max 5MB)
+    max_size = 5 * 1024 * 1024  # 5MB
+    contents = await file.read()
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File too large. Maximum size is 5MB."
+        )
+
+    try:
+        # Convert to base64 data URL
+        base64_data = base64.b64encode(contents).decode('utf-8')
+        data_url = f"data:{mime_type};base64,{base64_data}"
+
+        return {"url": data_url}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process image: {str(e)}"
+        )
+    finally:
+        await file.close()
+
+
+# TRAINING TIP ENDPOINTS
+
+@app.get("/api/training-tips", response_model=List[TrainingTipPublicResponse])
+def get_approved_training_tips(
+    category: Optional[str] = None,
+    anonymous_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_member: Optional[Member] = Depends(get_current_member_optional)
+):
+    """Get all approved training tips"""
+    query = db.query(TrainingTip).filter(TrainingTip.status == 'approved')
+
+    if category:
+        query = query.filter(TrainingTip.category == category)
+
+    tips = query.order_by(TrainingTip.upvotes.desc(), TrainingTip.created_at.desc()).all()
+
+    # Get user's upvotes
+    user_upvoted_tips = set()
+    if current_member:
+        upvotes = db.query(TrainingTipUpvote.tip_id).filter(
+            TrainingTipUpvote.member_id == current_member.id
+        ).all()
+        user_upvoted_tips = {u.tip_id for u in upvotes}
+    elif anonymous_id:
+        upvotes = db.query(TrainingTipUpvote.tip_id).filter(
+            TrainingTipUpvote.anonymous_id == anonymous_id
+        ).all()
+        user_upvoted_tips = {u.tip_id for u in upvotes}
+
+    result = []
+    for tip in tips:
+        tip_dict = {
+            "id": tip.id,
+            "category": tip.category,
+            "title": tip.title,
+            "title_cn": tip.title_cn,
+            "content": tip.content,
+            "content_cn": tip.content_cn,
+            "video_url": tip.video_url,
+            "video_platform": tip.video_platform,
+            "author_name": tip.author_name,
+            "upvotes": tip.upvotes,
+            "user_upvoted": tip.id in user_upvoted_tips
+        }
+        result.append(TrainingTipPublicResponse(**tip_dict))
+
+    return result
+
+
+@app.get("/api/training-tips/all", response_model=List[TrainingTipResponse])
+def get_all_training_tips(
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Get all training tips including pending/rejected (admin only)"""
+    tips = db.query(TrainingTip).order_by(
+        TrainingTip.status,
+        TrainingTip.created_at.desc()
+    ).all()
+    return tips
+
+
+@app.post("/api/training-tips", response_model=TrainingTipResponse)
+def submit_training_tip(
+    tip: TrainingTipCreate,
+    db: Session = Depends(get_db),
+    current_member: Optional[Member] = Depends(get_current_member_optional)
+):
+    """Submit a new training tip (anyone can submit, requires admin approval)"""
+    tip_data = tip.model_dump()
+
+    # Convert enum to string
+    if 'category' in tip_data and tip_data['category']:
+        tip_data['category'] = tip_data['category'].value
+
+    # Set author info if logged in
+    if current_member:
+        tip_data['author_id'] = current_member.id
+        tip_data['author_name'] = current_member.display_name or current_member.username
+
+    tip_data['status'] = 'pending'
+
+    db_tip = TrainingTip(**tip_data)
+    db.add(db_tip)
+    db.commit()
+    db.refresh(db_tip)
+    return db_tip
+
+
+@app.put("/api/training-tips/{tip_id}", response_model=TrainingTipResponse)
+def update_training_tip(
+    tip_id: int,
+    tip_update: TrainingTipUpdate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Update a training tip (admin only)"""
+    tip = db.query(TrainingTip).filter(TrainingTip.id == tip_id).first()
+    if not tip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tip not found")
+
+    update_data = tip_update.model_dump(exclude_unset=True)
+
+    # Convert enums to strings
+    if 'category' in update_data and update_data['category']:
+        update_data['category'] = update_data['category'].value
+    if 'status' in update_data and update_data['status']:
+        update_data['status'] = update_data['status'].value
+
+    for field, value in update_data.items():
+        setattr(tip, field, value)
+
+    db.commit()
+    db.refresh(tip)
+    return tip
+
+
+@app.put("/api/training-tips/{tip_id}/approve")
+def approve_training_tip(
+    tip_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Approve a pending training tip (admin only)"""
+    tip = db.query(TrainingTip).filter(TrainingTip.id == tip_id).first()
+    if not tip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tip not found")
+
+    tip.status = 'approved'
+    db.commit()
+    return {"message": f"Tip '{tip.title}' approved successfully"}
+
+
+@app.put("/api/training-tips/{tip_id}/reject")
+def reject_training_tip(
+    tip_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Reject a pending training tip (admin only)"""
+    tip = db.query(TrainingTip).filter(TrainingTip.id == tip_id).first()
+    if not tip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tip not found")
+
+    tip.status = 'rejected'
+    db.commit()
+    return {"message": f"Tip '{tip.title}' rejected"}
+
+
+@app.delete("/api/training-tips/{tip_id}")
+def delete_training_tip(
+    tip_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Delete a training tip (admin only)"""
+    tip = db.query(TrainingTip).filter(TrainingTip.id == tip_id).first()
+    if not tip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tip not found")
+
+    db.delete(tip)
+    db.commit()
+    return {"message": f"Tip {tip_id} deleted successfully"}
+
+
+@app.post("/api/training-tips/{tip_id}/upvote", response_model=TrainingTipUpvoteResponse)
+def toggle_tip_upvote(
+    tip_id: int,
+    anonymous_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_member: Optional[Member] = Depends(get_current_member_optional)
+):
+    """Toggle upvote on a training tip"""
+    tip = db.query(TrainingTip).filter(TrainingTip.id == tip_id).first()
+    if not tip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tip not found")
+
+    if tip.status != 'approved':
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Can only upvote approved tips")
+
+    # Check for existing upvote
+    existing_upvote = None
+    if current_member:
+        existing_upvote = db.query(TrainingTipUpvote).filter(
+            TrainingTipUpvote.tip_id == tip_id,
+            TrainingTipUpvote.member_id == current_member.id
+        ).first()
+    elif anonymous_id:
+        existing_upvote = db.query(TrainingTipUpvote).filter(
+            TrainingTipUpvote.tip_id == tip_id,
+            TrainingTipUpvote.anonymous_id == anonymous_id
+        ).first()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Anonymous ID required for non-logged-in users"
+        )
+
+    if existing_upvote:
+        # Remove upvote
+        db.delete(existing_upvote)
+        tip.upvotes = max(0, tip.upvotes - 1)
+        user_upvoted = False
+    else:
+        # Add upvote
+        new_upvote = TrainingTipUpvote(
+            tip_id=tip_id,
+            member_id=current_member.id if current_member else None,
+            anonymous_id=anonymous_id if not current_member else None
+        )
+        db.add(new_upvote)
+        tip.upvotes += 1
+        user_upvoted = True
+
+    db.commit()
+    db.refresh(tip)
+
+    return TrainingTipUpvoteResponse(
+        tip_id=tip_id,
+        upvotes=tip.upvotes,
+        user_upvoted=user_upvoted
+    )
 
 
 if __name__ == "__main__":

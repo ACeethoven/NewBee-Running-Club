@@ -15,14 +15,14 @@ export const navigationButtons = [
     path: '/about'
   },
   {
-    english: 'Highlights',
-    chinese: '活动高光',
-    path: '/highlights'
-  },
-  {
     english: 'Events Calendar',
     chinese: '年度活动日历',
     path: '/calendar'
+  },
+  {
+    english: 'Highlights',
+    chinese: '活动高光',
+    path: '/highlights'
   },
   {
     english: 'Club Credits/Records',

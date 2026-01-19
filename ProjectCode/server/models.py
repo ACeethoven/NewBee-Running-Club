@@ -20,6 +20,8 @@ class DonorBase(BaseModel):
     receipt_confirmed: bool = Field(default=False)
     notes: Optional[str] = None
     message: Optional[str] = None  # Public message from donor
+    member_id: Optional[int] = None  # Link to member account for privacy control
+    hide_amount: bool = Field(default=False)  # User can hide their donation amount
 
 class DonorCreate(DonorBase):
     pass
@@ -34,14 +36,39 @@ class DonorUpdate(BaseModel):
     receipt_confirmed: Optional[bool] = None
     notes: Optional[str] = None
     message: Optional[str] = None
+    member_id: Optional[int] = None
+    hide_amount: Optional[bool] = None
 
 class DonorResponse(DonorBase):
     donation_id: int
+    member_id: Optional[int] = None
+    hide_amount: bool = False
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class DonorPublicResponse(BaseModel):
+    """Public donor response with privacy rules applied"""
+    donation_id: int
+    donor_id: str
+    name: str
+    donor_type: DonorType
+    donation_event: str
+    amount: Optional[Decimal] = None  # Hidden for individual donors
+    quantity: int = 1
+    donation_date: Optional[date] = None
+    message: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DonorLinkMemberRequest(BaseModel):
+    """Request to link a donor to a member account"""
+    member_id: int
 
 class DonorsListResponse(BaseModel):
     individual_donors: list[DonorResponse]
@@ -60,7 +87,8 @@ class DonationSummary(BaseModel):
 class MemberStatus(str, Enum):
     pending = "pending"  # New signups awaiting committee approval
     runner = "runner"     # Approved regular members
-    admin = "admin"       # Admin and committee members with elevated privileges
+    committee = "committee"  # Committee members with elevated privileges (subset of admin)
+    admin = "admin"       # Full admin with all privileges
     quit = "quit"         # Members who left the club
 
 
@@ -91,6 +119,8 @@ class MemberBase(BaseModel):
     race_experience: Optional[str] = None
     running_goals: Optional[str] = None
     introduction: Optional[str] = None
+    # Join activity tracking
+    activities_completed: int = Field(default=0, ge=0, le=2)
 
 
 class MemberCreate(MemberBase):
@@ -127,6 +157,8 @@ class MemberUpdate(BaseModel):
     race_experience: Optional[str] = None
     running_goals: Optional[str] = None
     introduction: Optional[str] = None
+    # Join activity tracking
+    activities_completed: Optional[int] = None
 
 
 class MemberResponse(MemberBase):
@@ -136,6 +168,7 @@ class MemberResponse(MemberBase):
     checkin_credits: Decimal = Decimal("0")
     volunteer_credits: Decimal = Decimal("0")
     activity_credits: Decimal = Decimal("0")
+    activities_completed: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -187,11 +220,70 @@ class JoinApplicationRequest(BaseModel):
     introduction: str
 
 
+# Activity Status Enum for join workflow
+class ActivityStatus(str, Enum):
+    pending = "pending"
+    verified = "verified"
+    rejected = "rejected"
+
+
+# Member Activity Schemas (for two offline activities requirement)
+class MemberActivityBase(BaseModel):
+    activity_number: int = Field(..., ge=1, le=2)  # 1 or 2
+    event_name: str = Field(..., max_length=255)
+    event_date: date
+    description: Optional[str] = None
+    proof_url: Optional[str] = Field(None, max_length=500)
+
+
+class MemberActivityCreate(MemberActivityBase):
+    pass
+
+
+class MemberActivityUpdate(BaseModel):
+    event_name: Optional[str] = Field(None, max_length=255)
+    event_date: Optional[date] = None
+    description: Optional[str] = None
+    proof_url: Optional[str] = Field(None, max_length=500)
+
+
+class MemberActivityResponse(MemberActivityBase):
+    id: int
+    member_id: int
+    status: ActivityStatus = ActivityStatus.pending
+    verified_by: Optional[int] = None
+    verified_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ActivityVerifyRequest(BaseModel):
+    """Request to verify or reject an activity"""
+    approved: bool
+    rejection_reason: Optional[str] = Field(None, max_length=255)
+
+
+class JoinApplicationWithActivities(JoinApplicationRequest):
+    """Join application with optional activity records"""
+    activities: Optional[List[MemberActivityCreate]] = None
+
+
 # Event Status Enum
 class EventStatus(str, Enum):
     upcoming = "Upcoming"
     highlight = "Highlight"
     cancelled = "Cancelled"
+
+
+# Event Type Enum (for Heylo integration)
+class EventType(str, Enum):
+    standard = "standard"  # Regular club events
+    heylo = "heylo"        # Heylo-integrated events (weekly runs)
+    race = "race"          # Race events
 
 
 # Event Schemas
@@ -207,6 +299,8 @@ class EventBase(BaseModel):
     image: Optional[str] = Field(None, max_length=500)
     signup_link: Optional[str] = Field(None, max_length=500)
     status: EventStatus = Field(default=EventStatus.upcoming)
+    event_type: EventType = Field(default=EventType.standard)
+    heylo_embed: Optional[str] = None  # Heylo embed code for heylo event type
 
 
 class EventCreate(EventBase):
@@ -225,10 +319,14 @@ class EventUpdate(BaseModel):
     image: Optional[str] = Field(None, max_length=500)
     signup_link: Optional[str] = Field(None, max_length=500)
     status: Optional[EventStatus] = None
+    event_type: Optional[EventType] = None
+    heylo_embed: Optional[str] = None
 
 
 class EventResponse(EventBase):
     id: int
+    event_type: str = "standard"
+    heylo_embed: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -410,3 +508,180 @@ class TempClubCreditResponse(TempClubCreditBase):
 
     class Config:
         from_attributes = True
+
+
+# Banner Image Schemas
+class BannerImageBase(BaseModel):
+    image_url: str = Field(..., max_length=500)
+    alt_text: Optional[str] = Field(None, max_length=255)
+    link_path: Optional[str] = Field(None, max_length=255)
+    label_en: Optional[str] = Field(None, max_length=100)
+    label_cn: Optional[str] = Field(None, max_length=100)
+    display_order: int = Field(default=0)
+    is_active: bool = Field(default=True)
+    event_id: Optional[int] = None
+    source_type: str = Field(default='manual', max_length=20)
+
+
+class BannerImageCreate(BannerImageBase):
+    pass
+
+
+class BannerImageUpdate(BaseModel):
+    image_url: Optional[str] = Field(None, max_length=500)
+    alt_text: Optional[str] = Field(None, max_length=255)
+    link_path: Optional[str] = Field(None, max_length=255)
+    label_en: Optional[str] = Field(None, max_length=100)
+    label_cn: Optional[str] = Field(None, max_length=100)
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+    event_id: Optional[int] = None
+    source_type: Optional[str] = Field(None, max_length=20)
+
+
+class BannerImageResponse(BannerImageBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Carousel Banner Response (includes event data if linked)
+class CarouselBannerResponse(BaseModel):
+    id: int
+    image_url: str
+    alt_text: Optional[str] = None
+    link_path: Optional[str] = None
+    label_en: Optional[str] = None
+    label_cn: Optional[str] = None
+    display_order: int = 0
+    source_type: str = 'manual'
+    event_id: Optional[int] = None
+    # Event details (populated if source is event)
+    event_name: Optional[str] = None
+    event_chinese_name: Optional[str] = None
+    event_date: Optional[date] = None
+    event_time: Optional[str] = None
+    event_location: Optional[str] = None
+    event_description: Optional[str] = None
+    event_signup_link: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+# Homepage Section Schemas
+class HomepageSectionBase(BaseModel):
+    title_en: str = Field(..., max_length=100)
+    title_cn: Optional[str] = Field(None, max_length=100)
+    image_url: Optional[str] = None  # No max_length - can store base64 data URLs
+    link_path: str = Field(..., max_length=255)
+    display_order: int = Field(default=0)
+    is_active: bool = Field(default=True)
+
+
+class HomepageSectionCreate(HomepageSectionBase):
+    pass
+
+
+class HomepageSectionUpdate(BaseModel):
+    title_en: Optional[str] = Field(None, max_length=100)
+    title_cn: Optional[str] = Field(None, max_length=100)
+    image_url: Optional[str] = None  # No max_length - can store base64 data URLs
+    link_path: Optional[str] = Field(None, max_length=255)
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class HomepageSectionResponse(HomepageSectionBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SectionReorderRequest(BaseModel):
+    section_ids: List[int]  # List of section IDs in desired order
+
+
+# Training Tip Status Enum
+class TipStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
+# Training Tip Category Enum
+class TipCategory(str, Enum):
+    recovery = "recovery"
+    nutrition = "nutrition"
+    technique = "technique"
+    mental = "mental"
+    gear = "gear"
+
+
+# Training Tip Schemas
+class TrainingTipBase(BaseModel):
+    category: TipCategory
+    title: str = Field(..., max_length=255)
+    title_cn: Optional[str] = Field(None, max_length=255)
+    content: str
+    content_cn: Optional[str] = None
+    video_url: Optional[str] = Field(None, max_length=500)
+    video_platform: Optional[str] = Field(None, max_length=20)
+
+
+class TrainingTipCreate(TrainingTipBase):
+    pass
+
+
+class TrainingTipUpdate(BaseModel):
+    category: Optional[TipCategory] = None
+    title: Optional[str] = Field(None, max_length=255)
+    title_cn: Optional[str] = Field(None, max_length=255)
+    content: Optional[str] = None
+    content_cn: Optional[str] = None
+    video_url: Optional[str] = Field(None, max_length=500)
+    video_platform: Optional[str] = Field(None, max_length=20)
+    status: Optional[TipStatus] = None
+
+
+class TrainingTipResponse(TrainingTipBase):
+    id: int
+    author_name: Optional[str] = None
+    author_id: Optional[int] = None
+    upvotes: int = 0
+    status: TipStatus
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TrainingTipPublicResponse(BaseModel):
+    """Public response (only approved tips)"""
+    id: int
+    category: TipCategory
+    title: str
+    title_cn: Optional[str] = None
+    content: str
+    content_cn: Optional[str] = None
+    video_url: Optional[str] = None
+    video_platform: Optional[str] = None
+    author_name: Optional[str] = None
+    upvotes: int = 0
+    user_upvoted: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class TrainingTipUpvoteResponse(BaseModel):
+    tip_id: int
+    upvotes: int
+    user_upvoted: bool
