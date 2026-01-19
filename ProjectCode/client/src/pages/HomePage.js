@@ -463,7 +463,7 @@ export default function HomePage() {
                   filter: isHovered ? 'brightness(0.85)' : 'brightness(1)',
                 }}
                 onError={(e) => {
-                  e.target.src = '/placeholder-banner.png';
+                  e.target.src = '/master-image-1.jpg';
                 }}
               />
             ))}
