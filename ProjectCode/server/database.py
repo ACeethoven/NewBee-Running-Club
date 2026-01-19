@@ -331,6 +331,25 @@ class EventCommentSettings(Base):
     )
 
 
+# TempClubCredit Model for storing credits for people who haven't registered as members yet
+class TempClubCredit(Base):
+    __tablename__ = "temp_club_credits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(255), nullable=False, index=True)
+    credit_type = Column(String(50), nullable=False)  # 'total', 'activity', 'registration', 'volunteer'
+    registration_credits = Column(DECIMAL(10, 2), default=0)
+    checkin_credits = Column(DECIMAL(10, 2), default=0)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Indexes for better query performance
+    __table_args__ = (
+        Index('idx_temp_credit_full_name', 'full_name'),
+        Index('idx_temp_credit_type', 'credit_type'),
+    )
+
+
 # Database dependency for FastAPI
 def get_db():
     db = SessionLocal()

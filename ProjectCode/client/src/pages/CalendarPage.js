@@ -10,7 +10,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 import { useAdmin, useAuth } from '../context';
-import { useAutoFillOnTab } from '../hooks';
+import { useAutoFillOnTab, useTranslationAutoFill } from '../hooks';
 import { storage } from '../firebase/config';
 import { getEventsByStatus, createEvent, updateEvent, deleteEvent } from '../api';
 
@@ -73,6 +73,28 @@ export default function CalendarPage() {
     setValue: (field, value) => setFormData(prev => ({ ...prev, [field]: value })),
     defaultValues: eventDefaultValues
   });
+
+  // Translation auto-fill for bilingual fields
+  const {
+    handleKeyDown: handleTranslationKeyDown,
+    handleBlur: handleTranslationBlur,
+    translations,
+    isTranslating
+  } = useTranslationAutoFill({
+    setValue: (field, value) => setFormData(prev => ({ ...prev, [field]: value })),
+    getValue: (field) => formData[field],
+    fieldPairs: [
+      ['name', 'chinese_name'],
+      ['location', 'chinese_location'],
+      ['description', 'chinese_description']
+    ]
+  });
+
+  // Combined key down handler for both auto-fill and translation
+  const handleFieldKeyDown = (event) => {
+    handleAutoFill(event);
+    handleTranslationKeyDown(event);
+  };
 
   const handleImageError = (e) => {
     console.error('Image failed to load:', e.target.src);
@@ -438,21 +460,23 @@ export default function CalendarPage() {
 
       {/* Featured Events Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 600,
-              color: '#FFA500',
-              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-            }}
-          >
-            Featured Events
-            <br />
-            精选活动
-          </Typography>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: 2,
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
+          }}
+        >
+          Featured Events
+          <br />
+          精选活动
+        </Typography>
 
-          {adminModeEnabled && (
+        {adminModeEnabled && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -468,8 +492,10 @@ export default function CalendarPage() {
             >
               Add Event / 添加活动
             </Button>
-          )}
-        </Box>
+          </Box>
+        )}
+
+        {!adminModeEnabled && <Box sx={{ mb: 3 }} />}
 
         <Grid container spacing={3}>
           {featuredEvents.map((event) => (
@@ -580,34 +606,24 @@ export default function CalendarPage() {
 
       {/* Upcoming Events Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 6 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 600,
-              color: '#FFA500',
-              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-            }}
-          >
-            Upcoming Events
-            <br />
-            即将举行的活动
-          </Typography>
-
-          <IconButton
-            sx={{
-              color: '#FFA500',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 165, 0, 0.1)'
-              }
-            }}
-          >
-            <FilterListIcon />
-          </IconButton>
-        </Box>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
+          }}
+        >
+          Upcoming Events
+          <br />
+          即将举行的活动
+        </Typography>
 
         {/* Filters */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Grid container spacing={2} sx={{ maxWidth: 1000 }}>
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               select
@@ -665,7 +681,8 @@ export default function CalendarPage() {
               <MenuItem value="upcoming">Upcoming</MenuItem>
             </TextField>
           </Grid>
-        </Grid>
+          </Grid>
+        </Box>
 
         {/* Events List */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -997,7 +1014,8 @@ export default function CalendarPage() {
               label="Event Name / 活动名称 *"
               value={formData.name}
               onChange={handleFormChange('name')}
-              onKeyDown={handleAutoFill}
+              onKeyDown={handleFieldKeyDown}
+              onBlur={handleTranslationBlur}
               placeholder={eventDefaultValues.name}
               fullWidth
               required
@@ -1007,9 +1025,16 @@ export default function CalendarPage() {
               label="Chinese Name / 中文名称"
               value={formData.chinese_name}
               onChange={handleFormChange('chinese_name')}
-              onKeyDown={handleAutoFill}
-              placeholder={eventDefaultValues.chinese_name}
+              onKeyDown={handleFieldKeyDown}
+              onBlur={handleTranslationBlur}
+              placeholder={translations.chinese_name || eventDefaultValues.chinese_name}
               fullWidth
+              InputProps={{
+                endAdornment: isTranslating && !formData.chinese_name && (
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                )
+              }}
+              helperText={translations.chinese_name && !formData.chinese_name ? 'Press Tab to auto-fill translation' : ''}
             />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
@@ -1026,7 +1051,7 @@ export default function CalendarPage() {
                 label="Time / 时间"
                 value={formData.time}
                 onChange={handleFormChange('time')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 fullWidth
                 placeholder={eventDefaultValues.time}
               />
@@ -1037,7 +1062,8 @@ export default function CalendarPage() {
                 label="Location / 地点"
                 value={formData.location}
                 onChange={handleFormChange('location')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
+                onBlur={handleTranslationBlur}
                 placeholder={eventDefaultValues.location}
                 fullWidth
               />
@@ -1046,9 +1072,16 @@ export default function CalendarPage() {
                 label="Chinese Location / 中文地点"
                 value={formData.chinese_location}
                 onChange={handleFormChange('chinese_location')}
-                onKeyDown={handleAutoFill}
-                placeholder={eventDefaultValues.chinese_location}
+                onKeyDown={handleFieldKeyDown}
+                onBlur={handleTranslationBlur}
+                placeholder={translations.chinese_location || eventDefaultValues.chinese_location}
                 fullWidth
+                InputProps={{
+                  endAdornment: isTranslating && !formData.chinese_location && (
+                    <CircularProgress size={16} sx={{ mr: 1 }} />
+                  )
+                }}
+                helperText={translations.chinese_location && !formData.chinese_location ? 'Press Tab to auto-fill translation' : ''}
               />
             </Box>
             <TextField
@@ -1056,7 +1089,8 @@ export default function CalendarPage() {
               label="Description / 描述"
               value={formData.description}
               onChange={handleFormChange('description')}
-              onKeyDown={handleAutoFill}
+              onKeyDown={handleFieldKeyDown}
+              onBlur={handleTranslationBlur}
               placeholder={eventDefaultValues.description}
               fullWidth
               multiline
@@ -1067,11 +1101,18 @@ export default function CalendarPage() {
               label="Chinese Description / 中文描述"
               value={formData.chinese_description}
               onChange={handleFormChange('chinese_description')}
-              onKeyDown={handleAutoFill}
-              placeholder={eventDefaultValues.chinese_description}
+              onKeyDown={handleFieldKeyDown}
+              onBlur={handleTranslationBlur}
+              placeholder={translations.chinese_description || eventDefaultValues.chinese_description}
               fullWidth
               multiline
               rows={3}
+              InputProps={{
+                endAdornment: isTranslating && !formData.chinese_description && (
+                  <CircularProgress size={16} sx={{ mr: 1 }} />
+                )
+              }}
+              helperText={translations.chinese_description && !formData.chinese_description ? 'Press Tab to auto-fill translation' : ''}
             />
             {/* Image Upload */}
             <Box sx={{ border: '1px dashed #ccc', borderRadius: 1, p: 2 }}>
@@ -1139,7 +1180,7 @@ export default function CalendarPage() {
               label="Signup Link / 报名链接"
               value={formData.signup_link}
               onChange={handleFormChange('signup_link')}
-              onKeyDown={handleAutoFill}
+              onKeyDown={handleFieldKeyDown}
               fullWidth
               placeholder={eventDefaultValues.signup_link}
             />
