@@ -1,6 +1,6 @@
 # AWS Deployment Guide - NewBee Running Club
 
-This guide walks you through deploying the NewBee Running Club application to AWS.
+This guide documents the complete deployment process for newbeerunning.org.
 
 ## Architecture Overview
 
@@ -11,14 +11,15 @@ This guide walks you through deploying the NewBee Running Club application to AW
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Route 53 (DNS)                           │
-│  newbeerunning.org → EC2 IP                                 │
-│  api.newbeerunning.org → EC2 IP                             │
+│                    Cloudflare (DNS + SSL)                    │
+│  newbeerunning.org → EC2 IP (Proxied)                       │
+│  api.newbeerunning.org → EC2 IP (Proxied)                   │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                     EC2 Instance                             │
+│                EC2 Instance (Ubuntu 22.04)                   │
+│                  ip-172-31-36-26                             │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │                    Nginx (port 80/443)                  │ │
 │  │  ┌─────────────────┐    ┌─────────────────────────────┐│ │
@@ -37,193 +38,295 @@ This guide walks you through deploying the NewBee Running Club application to AW
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    AWS RDS (MySQL)                           │
-│     newbee-running-club-db.xxx.us-east-2.rds.amazonaws.com  │
+│     newbee-running-club-db.czi2swgqcu45.us-east-2.rds.amazonaws.com  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Prerequisites
-
-- AWS Account with EC2 and RDS access
-- Domain name (newbeerunning.org) with DNS management access
-- SSH key pair for EC2 access
-- Your existing RDS database credentials
-
----
-
-## Step 1: Launch EC2 Instance
-
-### 1.1 Create EC2 Instance
-
-1. Go to **AWS Console → EC2 → Launch Instance**
-2. Configure:
-   - **Name:** `newbeerunning-web`
-   - **AMI:** Ubuntu Server 22.04 LTS
-   - **Instance type:** `t3.small` (recommended) or `t3.micro` (minimum)
-   - **Key pair:** Select or create a key pair
-   - **Network settings:**
-     - Allow SSH (port 22) from your IP
-     - Allow HTTP (port 80) from anywhere
-     - Allow HTTPS (port 443) from anywhere
-   - **Storage:** 20 GB gp3
-
-3. Click **Launch Instance**
-
-### 1.2 Allocate Elastic IP
-
-1. Go to **EC2 → Elastic IPs → Allocate Elastic IP address**
-2. Associate with your EC2 instance
-3. Note this IP address for DNS configuration
-
-### 1.3 Configure Security Group
-
-Ensure your security group has these inbound rules:
-
-| Type  | Port | Source    |
-|-------|------|-----------|
-| SSH   | 22   | Your IP   |
-| HTTP  | 80   | 0.0.0.0/0 |
-| HTTPS | 443  | 0.0.0.0/0 |
-
----
-
-## Step 2: Configure DNS (Route 53 or Domain Registrar)
-
-Add these DNS records pointing to your Elastic IP:
-
-| Type | Name                    | Value          |
-|------|-------------------------|----------------|
-| A    | newbeerunning.org       | YOUR_ELASTIC_IP |
-| A    | www.newbeerunning.org   | YOUR_ELASTIC_IP |
-| A    | api.newbeerunning.org   | YOUR_ELASTIC_IP |
-
-Wait for DNS propagation (can take up to 48 hours, usually faster).
-
----
-
-## Step 3: Configure RDS Security Group
-
-Your existing RDS instance needs to accept connections from the EC2 instance.
-
-1. Go to **RDS → Databases → your-database → Security Groups**
-2. Edit inbound rules to allow MySQL (port 3306) from your EC2's security group
-
----
-
-## Step 4: Initial Server Setup
-
-### 4.1 SSH into your EC2 instance
+## SSH into EC2
 
 ```bash
-ssh -i your-key.pem ubuntu@YOUR_ELASTIC_IP
+ssh -i /path/to/your-key.pem ubuntu@YOUR_EC2_PUBLIC_IP
 ```
 
-### 4.2 Update system and install Node.js
+Example:
+```bash
+ssh -i ~/.ssh/newbee-key.pem ubuntu@3.15.xxx.xxx
+```
+
+---
+
+## Directory Structure on EC2
+
+```
+/var/www/newbeerunning/
+├── NewBee-Running-Club/     # Git repository (prod branch)
+│   ├── ProjectCode/
+│   │   ├── client/          # React frontend source
+│   │   └── server/          # FastAPI backend source
+│   └── deploy/              # Deployment configs
+├── frontend/                # Built React app (served by nginx)
+└── backend/                 # Backend app + venv
+    ├── venv/                # Python virtual environment
+    ├── .env                 # Environment variables
+    └── *.py                 # Backend source files
+```
+
+---
+
+## Initial Server Setup (One-Time)
+
+### 1. Update System & Install Dependencies
 
 ```bash
 sudo apt update && sudo apt upgrade -y
+sudo apt install -y nginx python3 python3-pip python3.12-venv git curl rsync
+```
 
-# Install Node.js 18.x
+### 2. Install Node.js 18.x
+
+```bash
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt install -y nodejs
 ```
 
-### 4.3 Clone the repository
+### 3. Create Directory Structure
 
 ```bash
-sudo mkdir -p /var/www/newbeerunning
-sudo chown ubuntu:ubuntu /var/www/newbeerunning
+sudo mkdir -p /var/www/newbeerunning/{frontend,backend}
+sudo chown -R ubuntu:ubuntu /var/www/newbeerunning
+```
+
+### 4. Clone Repository
+
+```bash
 cd /var/www/newbeerunning
-
-# Clone your repository (replace with your repo URL)
-git clone -b prod git@github.com:YOUR_USERNAME/NewBee-Running-Club.git repo
+git clone -b prod https://github.com/GXQ1223/NewBee-Running-Club.git NewBee-Running-Club
 ```
 
-### 4.4 Create backend environment file
+---
+
+## Backend Setup
+
+### 1. Create Python Virtual Environment
 
 ```bash
-nano /var/www/newbeerunning/backend/.env
+python3 -m venv /var/www/newbeerunning/backend/venv
 ```
 
-Add the following (replace with your actual values):
+### 2. Copy Backend Files
 
+```bash
+cd /var/www/newbeerunning/NewBee-Running-Club/ProjectCode/server
+rsync -av --exclude='venv' --exclude='__pycache__' --exclude='.env' . /var/www/newbeerunning/backend/
+```
+
+### 3. Install Python Dependencies
+
+```bash
+/var/www/newbeerunning/backend/venv/bin/pip install --upgrade pip
+/var/www/newbeerunning/backend/venv/bin/pip install -r /var/www/newbeerunning/backend/requirements.txt
+```
+
+### 4. Create Backend Environment File
+
+```bash
+sudo nano /var/www/newbeerunning/backend/.env
+```
+
+Contents:
 ```env
 DB_HOST=newbee-running-club-db.czi2swgqcu45.us-east-2.rds.amazonaws.com
 DB_PORT=3306
 DB_USER=admin
 DB_PASSWORD=YOUR_RDS_PASSWORD
 DB_NAME=newbee_running_club
+
 API_HOST=127.0.0.1
 API_PORT=8000
 DEBUG=False
 USE_SQLITE=False
-GMAIL_USER=your-email@gmail.com
-GMAIL_APP_PASSWORD=your-app-password
+
+GMAIL_USER=newbeerunningclub@gmail.com
+GMAIL_APP_PASSWORD=YOUR_GMAIL_APP_PASSWORD
 ```
 
----
-
-## Step 5: Run Deployment Script
+### 5. Setup Systemd Service
 
 ```bash
-cd /var/www/newbeerunning/repo
-sudo chmod +x deploy/deploy.sh
-sudo ./deploy/deploy.sh
+sudo cp /var/www/newbeerunning/NewBee-Running-Club/deploy/systemd/newbeerunning-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable newbeerunning-api
+sudo systemctl restart newbeerunning-api
 ```
 
-The script will:
-1. Install all dependencies (Nginx, Python, Node.js, Certbot)
-2. Build the React frontend
-3. Set up the Python backend with virtual environment
-4. Configure Nginx and SSL certificates
-5. Start the backend service
-
----
-
-## Step 6: Verify Deployment
-
-### Check services are running:
+### 6. Verify Backend is Running
 
 ```bash
-# Check backend status
 sudo systemctl status newbeerunning-api
-
-# Check nginx status
-sudo systemctl status nginx
+curl http://127.0.0.1:8000/
+# Should return: {"message":"NewBee Running Club API is running!","database":"AWS MySQL RDS"}
 ```
 
-### Test endpoints:
+---
+
+## Frontend Setup
+
+### 1. Create Production Environment File
 
 ```bash
-# Test API
-curl https://api.newbeerunning.org/
-
-# Should return:
-# {"message":"NewBee Running Club API is running!","database":"AWS MySQL RDS"}
+cd /var/www/newbeerunning/NewBee-Running-Club/ProjectCode/client
+nano .env.production
 ```
 
-### Visit in browser:
+Contents:
+```env
+# API Configuration
+REACT_APP_API_BASE_URL=https://api.newbeerunning.org
 
+# Firebase Configuration
+REACT_APP_FIREBASE_API_KEY=AIzaSyCV9AnOPulBSvWEBfBGprBVk7kFLmwDWnk
+REACT_APP_FIREBASE_AUTH_DOMAIN=newbee-running-club-website.firebaseapp.com
+REACT_APP_FIREBASE_PROJECT_ID=newbee-running-club-website
+REACT_APP_FIREBASE_STORAGE_BUCKET=newbee-running-club-website.firebasestorage.app
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=577206570730
+REACT_APP_FIREBASE_APP_ID=1:577206570730:web:169fb9e168168983695193
+REACT_APP_FIREBASE_MEASUREMENT_ID=G-YC22KHNK43
+```
+
+### 2. Install Dependencies & Build
+
+```bash
+npm ci
+npm run build
+```
+
+### 3. Deploy to Nginx Directory
+
+```bash
+sudo rm -rf /var/www/newbeerunning/frontend/*
+sudo cp -r build/* /var/www/newbeerunning/frontend/
+```
+
+### 4. Fix Case-Sensitive Image Filenames (if needed)
+
+```bash
+cd /var/www/newbeerunning/frontend
+sudo ln -s "Master-Image-1.jpg" "master-image-1.jpg"
+sudo ln -s "PageLogo.png" "pagelogo.png"
+```
+
+---
+
+## Cloudflare SSL Setup
+
+### 1. Create Origin Certificate in Cloudflare
+
+1. Go to Cloudflare Dashboard → SSL/TLS → **Origin Server**
+2. Click **Create Certificate**
+3. Keep defaults (15 years, covers `*.newbeerunning.org` and `newbeerunning.org`)
+4. Click **Create**
+5. **Copy both the certificate and private key** (you can only see the key once!)
+
+### 2. Install Certificate on EC2
+
+```bash
+sudo mkdir -p /etc/ssl/cloudflare
+sudo nano /etc/ssl/cloudflare/cert.pem
+# Paste the certificate, save
+
+sudo nano /etc/ssl/cloudflare/key.pem
+# Paste the private key, save
+
+sudo chmod 600 /etc/ssl/cloudflare/key.pem
+```
+
+---
+
+## Nginx Setup
+
+### 1. Copy Nginx Configuration
+
+```bash
+sudo cp /var/www/newbeerunning/NewBee-Running-Club/deploy/nginx/newbeerunning-cloudflare.conf /etc/nginx/sites-available/newbeerunning.conf
+sudo ln -sf /etc/nginx/sites-available/newbeerunning.conf /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+```
+
+### 2. Test & Restart Nginx
+
+```bash
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+---
+
+## Cloudflare DNS Setup
+
+In Cloudflare Dashboard → DNS, add these A records pointing to your EC2 public IP:
+
+| Type | Name | Content | Proxy Status |
+|------|------|---------|--------------|
+| A | @ | YOUR_EC2_IP | Proxied (orange) |
+| A | www | YOUR_EC2_IP | Proxied (orange) |
+| A | api | YOUR_EC2_IP | Proxied (orange) |
+
+SSL/TLS encryption mode: **Full**
+
+---
+
+## Verify Deployment
+
+```bash
+# Test backend locally
+curl http://127.0.0.1:8000/
+
+# Test nginx serves frontend
+curl -I http://localhost
+curl -I http://localhost/pagelogo.png
+
+# Test full stack through Cloudflare
+curl -I https://newbeerunning.org
+curl -I https://api.newbeerunning.org
+```
+
+URLs:
 - Frontend: https://newbeerunning.org
+- API: https://api.newbeerunning.org
 - API Docs: https://api.newbeerunning.org/docs
 
 ---
 
-## Step 7: Update Firebase Storage CORS
+## CI/CD Automatic Deployment
 
-Run this from your local machine (requires gcloud CLI):
+A GitHub Actions workflow (`.github/workflows/deploy-prod.yml`) automatically deploys when code is pushed to `prod` branch.
 
-```bash
-cd /path/to/NewBee-Running-Club
-gcloud storage buckets update gs://newbee-running-club-website.firebasestorage.app --cors-file=cors.json
-```
+### Setup GitHub Secrets
+
+Go to GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+
+| Secret Name | Value |
+|-------------|-------|
+| `EC2_HOST` | Your EC2 public IP |
+| `EC2_SSH_KEY` | Contents of your `.pem` SSH key file |
+
+### How It Works
+
+When you merge a PR from `dev` to `prod`:
+1. GitHub Actions SSHs into EC2
+2. Pulls latest code from `prod`
+3. Builds React frontend
+4. Updates backend dependencies
+5. Restarts services
+6. Verifies deployment health
 
 ---
 
 ## Maintenance Commands
 
-### View logs
+### View Logs
 
 ```bash
 # Backend logs
@@ -236,33 +339,47 @@ sudo tail -f /var/log/nginx/access.log
 sudo tail -f /var/log/nginx/error.log
 ```
 
-### Restart services
+### Restart Services
 
 ```bash
 sudo systemctl restart newbeerunning-api
 sudo systemctl restart nginx
 ```
 
-### Deploy updates
+### Check Service Status
 
 ```bash
-cd /var/www/newbeerunning/repo
-sudo ./deploy/deploy.sh
+sudo systemctl status newbeerunning-api
+sudo systemctl status nginx
 ```
 
-### Renew SSL certificates
-
-Certbot auto-renews, but to manually renew:
+### Manual Deployment (without CI/CD)
 
 ```bash
-sudo certbot renew
+cd /var/www/newbeerunning/NewBee-Running-Club
+git pull origin prod
+
+# Rebuild frontend
+cd ProjectCode/client
+npm ci
+npm run build
+sudo rm -rf /var/www/newbeerunning/frontend/*
+sudo cp -r build/* /var/www/newbeerunning/frontend/
+
+# Update backend
+cd ../server
+rsync -av --exclude='venv' --exclude='__pycache__' --exclude='.env' . /var/www/newbeerunning/backend/
+/var/www/newbeerunning/backend/venv/bin/pip install -r requirements.txt
+
+# Restart backend
+sudo systemctl restart newbeerunning-api
 ```
 
 ---
 
 ## Troubleshooting
 
-### Backend won't start
+### Backend Won't Start
 
 ```bash
 # Check logs
@@ -274,12 +391,12 @@ source venv/bin/activate
 python main.py
 ```
 
-### Database connection issues
+### Database Connection Issues
 
-1. Verify RDS security group allows EC2 access
+1. Verify RDS security group allows EC2 access (port 3306)
 2. Test connection:
    ```bash
-   mysql -h YOUR_RDS_ENDPOINT -u admin -p
+   mysql -h newbee-running-club-db.czi2swgqcu45.us-east-2.rds.amazonaws.com -u admin -p
    ```
 
 ### 502 Bad Gateway
@@ -287,34 +404,36 @@ python main.py
 Usually means backend isn't running:
 ```bash
 sudo systemctl restart newbeerunning-api
+sudo systemctl status newbeerunning-api
 ```
 
-### SSL certificate issues
+### Images Return 404
 
+Linux is case-sensitive. Check filename case matches code:
 ```bash
-sudo certbot --nginx -d newbeerunning.org -d www.newbeerunning.org -d api.newbeerunning.org
+ls -la /var/www/newbeerunning/frontend/*.png
+ls -la /var/www/newbeerunning/frontend/*.jpg
 ```
 
----
+Create symlinks if needed:
+```bash
+cd /var/www/newbeerunning/frontend
+sudo ln -s "ActualFilename.jpg" "requested-filename.jpg"
+```
 
-## Cost Estimates (Monthly)
+### Cloudflare Caching Old Content
 
-| Service | Spec | Est. Cost |
-|---------|------|-----------|
-| EC2 t3.small | 2 vCPU, 2GB RAM | ~$15 |
-| RDS (existing) | Already configured | Existing cost |
-| Elastic IP | In use | $0 |
-| Data transfer | ~10GB | ~$1 |
-| **Total** | | **~$16/month** |
+1. Cloudflare Dashboard → Caching → Configuration → **Purge Everything**
+2. Hard refresh browser: `Ctrl+Shift+R` (Windows/Linux) or `Cmd+Shift+R` (Mac)
 
 ---
 
 ## Security Checklist
 
-- [ ] SSH key authentication only (disable password auth)
-- [ ] RDS not publicly accessible
-- [ ] Security groups restrict access appropriately
-- [ ] SSL certificates configured and auto-renewing
-- [ ] Backend environment variables not in git
-- [ ] Firebase config secured
+- [x] SSH key authentication only
+- [x] RDS not publicly accessible (security group restricted)
+- [x] Backend .env not in git
+- [x] SSL via Cloudflare
+- [x] Nginx security headers configured
 - [ ] Regular security updates: `sudo apt update && sudo apt upgrade`
+- [ ] Set up AWS CloudWatch for monitoring (optional)
