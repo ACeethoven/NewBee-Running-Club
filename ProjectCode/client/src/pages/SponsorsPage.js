@@ -1,219 +1,258 @@
-import { Alert, Box, Button, Container, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, Tab, Tabs, TextField, Tooltip, Typography } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import InfoIcon from '@mui/icons-material/Info';
-import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
-import DonorGrid from '../components/DonorGrid';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 import { useAdmin } from '../context';
+import { useAutoFillOnTab } from '../hooks';
+import { getAllDonors, createDonor, updateDonor, deleteDonor } from '../api/donors';
 
 export default function SponsorsPage() {
   const { adminModeEnabled } = useAdmin();
   const [individualDonors, setIndividualDonors] = useState([]);
   const [enterpriseDonors, setEnterpriseDonors] = useState([]);
   const [selectedTab, setSelectedTab] = useState(0);
-  const [adminInfoOpen, setAdminInfoOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Admin dialogs
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingDonor, setEditingDonor] = useState(null);
-  const [donorFormData, setDonorFormData] = useState({ name: '', notes: '' });
+  const [saving, setSaving] = useState(false);
+  const [donorFormData, setDonorFormData] = useState({
+    name: '',
+    amount: '',
+    donation_date: '',
+    message: '',
+    notes: ''
+  });
+
+  // Default values for Tab auto-fill
+  const donorDefaultValues = {
+    name: 'Anonymous Donor',
+    amount: '100.00',
+    message: 'Thank you for your support!',
+    notes: 'N/A'
+  };
+
+  const handleAutoFill = useAutoFillOnTab({
+    setValue: (field, value) => setDonorFormData(prev => ({ ...prev, [field]: value })),
+    defaultValues: donorDefaultValues
+  });
 
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
   };
 
+  const fetchDonors = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getAllDonors();
+      setIndividualDonors(data.individual_donors || []);
+      setEnterpriseDonors(data.enterprise_donors || []);
+    } catch (err) {
+      console.error('Error fetching donors:', err);
+      setError('Failed to load donors. Please try again. / 加载捐助者失败，请重试。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Fetch donor data
-    const fetchData = async () => {
-      try {
-        console.log('Starting to fetch donor data...');
-
-        const [individualResponse, enterpriseResponse] = await Promise.all([
-          fetch('/data/individualDonors.csv'),
-          fetch('/data/enterpriseDonors.csv')
-        ]);
-
-        console.log('Fetch responses:', {
-          individual: individualResponse.status,
-          enterprise: enterpriseResponse.status
-        });
-
-        if (!individualResponse.ok || !enterpriseResponse.ok) {
-          throw new Error(`Failed to fetch donor data: ${individualResponse.status} ${enterpriseResponse.status}`);
-        }
-
-        const [individualText, enterpriseText] = await Promise.all([
-          individualResponse.text(),
-          enterpriseResponse.text()
-        ]);
-
-        console.log('CSV text received:', {
-          individualLength: individualText.length,
-          enterpriseLength: enterpriseText.length
-        });
-
-        // Parse CSV data
-        const individualParsed = Papa.parse(individualText, {
-          header: true,
-          skipEmptyLines: true
-        });
-
-        const enterpriseParsed = Papa.parse(enterpriseText, {
-          header: true,
-          skipEmptyLines: true
-        });
-
-        console.log('Parsed CSV data:', {
-          individualRows: individualParsed.data.length,
-          enterpriseRows: enterpriseParsed.data.length
-        });
-
-        // Process individual donors
-        const individualData = individualParsed.data
-          .filter(donor => donor['WECHAT NAME'] && donor.AMOUNT && donor.NOTES !== 'Anonymous Donor') // Filter out empty rows and anonymous donors
-          .map((donor, index) => ({
-            id: index,
-            name: donor['WECHAT NAME'],
-            notes: donor.NOTES
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
-
-        // Process enterprise donors
-        const enterpriseData = enterpriseParsed.data
-          .filter(donor => donor.name && donor.amount) // Filter out empty rows
-          .map((donor, index) => ({
-            id: index,
-            name: donor.name
-          }))
-          .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
-
-        console.log('Processed data:', {
-          individualDonors: individualData.length,
-          enterpriseDonors: enterpriseData.length,
-          sampleIndividual: individualData[0],
-          sampleEnterprise: enterpriseData[0]
-        });
-
-        setIndividualDonors(individualData);
-        setEnterpriseDonors(enterpriseData);
-      } catch (error) {
-        console.error('Error in fetchData:', error);
-      }
-    };
-
-    fetchData();
+    fetchDonors();
   }, []);
 
   const handleEditDonor = (donor) => {
     setEditingDonor(donor);
-    setDonorFormData({ name: donor.name, notes: donor.notes || '' });
+    setDonorFormData({
+      name: donor.name || '',
+      amount: donor.amount || '',
+      donation_date: donor.donation_date || '',
+      message: donor.message || '',
+      notes: donor.notes || ''
+    });
     setEditDialogOpen(true);
   };
 
   const handleAddDonor = () => {
     setEditingDonor(null);
-    setDonorFormData({ name: '', notes: '' });
+    setDonorFormData({
+      name: '',
+      amount: '',
+      donation_date: new Date().toISOString().split('T')[0],
+      message: '',
+      notes: ''
+    });
     setEditDialogOpen(true);
   };
 
   const handleCloseEditDialog = () => {
     setEditDialogOpen(false);
     setEditingDonor(null);
-    setDonorFormData({ name: '', notes: '' });
+    setDonorFormData({ name: '', amount: '', donation_date: '', message: '', notes: '' });
   };
 
-  const handleSaveDonor = () => {
-    // For now, show the info dialog about CSV editing
-    setEditDialogOpen(false);
-    setAdminInfoOpen(true);
+  const handleSaveDonor = async () => {
+    setSaving(true);
+    try {
+      if (editingDonor) {
+        // Update existing donor
+        await updateDonor(editingDonor.donor_id, {
+          name: donorFormData.name,
+          amount: parseFloat(donorFormData.amount),
+          donation_date: donorFormData.donation_date || null,
+          message: donorFormData.message || null,
+          notes: donorFormData.notes || null
+        });
+      } else {
+        // Create new donor
+        const donorType = selectedTab === 0 ? 'individual' : 'enterprise';
+        const donorId = `${donorType.toUpperCase().slice(0, 3)}_${Date.now()}`;
+        await createDonor({
+          donor_id: donorId,
+          name: donorFormData.name,
+          donor_type: donorType,
+          amount: parseFloat(donorFormData.amount),
+          quantity: 1,
+          donation_date: donorFormData.donation_date || null,
+          donation_event: 'General Support',
+          message: donorFormData.message || null,
+          notes: donorFormData.notes || null
+        });
+      }
+      handleCloseEditDialog();
+      fetchDonors(); // Refresh the list
+    } catch (err) {
+      console.error('Error saving donor:', err);
+      setError('Failed to save donor. Please try again. / 保存捐助者失败，请重试。');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteDonor = (donor) => {
-    // For now, show the info dialog about CSV editing
-    setAdminInfoOpen(true);
+  const handleDeleteClick = (donor) => {
+    setEditingDonor(donor);
+    setDeleteDialogOpen(true);
   };
 
-  const individualColumns = [
-    { field: 'name', headerName: 'Name', width: 300 }
-  ];
+  const handleConfirmDelete = async () => {
+    setSaving(true);
+    try {
+      await deleteDonor(editingDonor.donor_id);
+      setDeleteDialogOpen(false);
+      setEditingDonor(null);
+      fetchDonors(); // Refresh the list
+    } catch (err) {
+      console.error('Error deleting donor:', err);
+      setError('Failed to delete donor. Please try again. / 删除捐助者失败，请重试。');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const enterpriseColumns = [
-    { field: 'name', headerName: 'Organization', width: 300 }
-  ];
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return dateStr;
+    }
+  };
 
-  // Custom render for DonorGrid with admin buttons
-  const renderDonorWithAdminControls = (donors, columns) => {
-    if (!adminModeEnabled) {
-      return <DonorGrid data={donors} columns={columns} />;
+  const formatAmount = (amount) => {
+    if (!amount) return '$0';
+    return `$${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Render donor cards
+  const renderDonorCards = (donors) => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <CircularProgress sx={{ color: '#FFA500' }} />
+        </Box>
+      );
+    }
+
+    if (donors.length === 0) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Typography color="text.secondary">
+            No donors yet. / 暂无捐助者。
+          </Typography>
+        </Box>
+      );
     }
 
     return (
-      <Box>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddDonor}
-            sx={{
-              backgroundColor: '#FFB84D',
-              color: 'white',
-              textTransform: 'none',
-              '&:hover': {
-                backgroundColor: '#FFA833',
-              }
-            }}
-          >
-            Add Donor / 添加捐助者
-          </Button>
-        </Box>
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: 2
-        }}>
-          {donors.map((donor) => (
-            <Box
-              key={donor.id}
+      <Grid container spacing={2}>
+        {donors.map((donor) => (
+          <Grid item xs={12} sm={6} md={4} lg={3} key={donor.donation_id}>
+            <Card
+              variant="outlined"
               sx={{
-                p: 2,
-                border: '1px solid #e0e0e0',
-                borderRadius: '8px',
+                height: '100%',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: 'white',
+                flexDirection: 'column',
+                transition: 'all 0.2s ease',
                 '&:hover': {
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  transform: 'translateY(-2px)'
                 }
               }}
             >
-              <Typography variant="body1">{donor.name}</Typography>
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                <Tooltip title="Edit donor / 编辑捐助者">
-                  <IconButton
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                  <Typography variant="h6" component="div" sx={{ fontWeight: 500 }}>
+                    {donor.name}
+                  </Typography>
+                  {adminModeEnabled && (
+                    <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                      <Tooltip title="Edit / 编辑">
+                        <IconButton size="small" onClick={() => handleEditDonor(donor)}>
+                          <EditIcon fontSize="small" color="primary" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete / 删除">
+                        <IconButton size="small" onClick={() => handleDeleteClick(donor)}>
+                          <DeleteIcon fontSize="small" color="error" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  )}
+                </Box>
+
+                <Typography variant="h5" sx={{ color: '#FFA500', fontWeight: 600, mb: 1 }}>
+                  {formatAmount(donor.amount)}
+                </Typography>
+
+                {donor.donation_date && (
+                  <Chip
+                    label={formatDate(donor.donation_date)}
                     size="small"
-                    onClick={() => handleEditDonor(donor)}
-                    sx={{ color: 'primary.main' }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Delete donor / 删除捐助者">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDeleteDonor(donor)}
-                    sx={{ color: 'error.main' }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      </Box>
+                    sx={{ mb: 1, backgroundColor: 'rgba(255, 165, 0, 0.1)' }}
+                  />
+                )}
+
+                {donor.message && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    "{donor.message}"
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
     );
   };
 
@@ -225,37 +264,57 @@ export default function SponsorsPage() {
       {/* Navigation Buttons */}
       <NavigationButtons />
 
+      {/* Error Alert */}
+      {error && (
+        <Container maxWidth="xl" sx={{ px: 2, mt: 2 }}>
+          <Alert severity="error" onClose={() => setError('')}>
+            {error}
+          </Alert>
+        </Container>
+      )}
+
       {/* Admin Mode Alert */}
       {adminModeEnabled && (
         <Container maxWidth="xl" sx={{ px: 2, mt: 2 }}>
-          <Alert
-            severity="info"
-            icon={<InfoIcon />}
-            action={
-              <Button color="inherit" size="small" onClick={() => setAdminInfoOpen(true)}>
-                Learn More
-              </Button>
-            }
-          >
-            Admin mode enabled. You can edit and delete donors. / 管理员模式已开启，您可以编辑和删除捐助者。
+          <Alert severity="info" icon={<InfoIcon />}>
+            Admin mode enabled. You can add, edit, and delete donors. / 管理员模式已开启，您可以添加、编辑和删除捐助者。
           </Alert>
         </Container>
       )}
 
       {/* Sponsors Text */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
-        <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography
             variant="h4"
             sx={{
               fontWeight: 600,
               color: '#FFA500',
-              mb: 3
+              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
             }}
           >
             Our Sponsors/Donors
+            <br />
             我们的捐助者/赞助商
           </Typography>
+
+          {adminModeEnabled && (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddDonor}
+              sx={{
+                backgroundColor: '#FFB84D',
+                color: 'white',
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: '#FFA833',
+                }
+              }}
+            >
+              Add Donor / 添加捐助者
+            </Button>
+          )}
         </Box>
       </Container>
 
@@ -277,8 +336,8 @@ export default function SponsorsPage() {
               mb: 3,
             }}
           >
-            新蜂已正式注册为 501(c)(3) 非营利组织，将以更专业的方式服务跑者。欢迎通过 Zelle：newbeerunningclub@gmail.com 支持跑团运作。所有款项将用于活动物资、义工补给等方面。感谢每一位支持新蜂的你
-            以下排名不分先后，不论多少，每一笔捐款我们都非常感谢。谢谢大家的支持！
+            新蜂已正式注册为 501(c)(3) 非营利组织，将以更专业的方式服务跑者。欢迎通过 Zelle：newbeerunningclub@gmail.com 支持跑团运作。所有款项将用于活动物资、义工补给等方面。感谢每一位支持新蜂的你！
+            以下排名按捐款日期排序，不论多少，每一笔捐款我们都非常感谢。谢谢大家的支持！
           </Typography>
           <Typography
             variant="body1"
@@ -290,8 +349,8 @@ export default function SponsorsPage() {
               mb: 3,
             }}
           >
-            NewBee has officially registered as a 501(c)(3) non-profit organization, serving runners in a more professional manner. Support our running club via Zelle: newbeerunningclub@gmail.com. All funds will be used for event supplies and volunteer support. Thank you for supporting NewBee
-            Below is the list of our sponsors/donors. Thank you for your support!
+            NewBee has officially registered as a 501(c)(3) non-profit organization, serving runners in a more professional manner. Support our running club via Zelle: newbeerunningclub@gmail.com. All funds will be used for event supplies and volunteer support. Thank you for supporting NewBee!
+            Below is the list of our sponsors/donors sorted by donation date. Thank you for your support!
           </Typography>
         </Box>
       </Container>
@@ -306,17 +365,16 @@ export default function SponsorsPage() {
           },
           '& .MuiTab-root': {
             minHeight: 'unset',
-            padding: '12px 0',
+            padding: { xs: '8px 0', sm: '12px 0' },
             width: '50%',
-            fontSize: '2.125rem', // Same as h4
             fontWeight: 600,
-            color: 'rgba(102, 102, 102, 0.25)', // Much more transparent gray
+            color: 'rgba(102, 102, 102, 0.25)',
             '&.Mui-selected': {
-              color: '#FFA500', // Same as main title
+              color: '#FFA500',
             },
           },
           '& .MuiTabs-indicator': {
-            backgroundColor: '#FFA500', // Same as main title
+            backgroundColor: '#FFA500',
             height: '3px',
           },
         }}>
@@ -328,10 +386,11 @@ export default function SponsorsPage() {
             <Tab
               label={
                 <Typography sx={{
-                  fontSize: 'inherit',
-                  fontWeight: 'inherit',
+                  fontSize: { xs: '1rem', sm: '1.5rem', md: '2.125rem' },
+                  fontWeight: 600,
                   textAlign: 'center',
-                  whiteSpace: 'pre-line'
+                  whiteSpace: 'pre-line',
+                  lineHeight: 1.3
                 }}>
                   {`Individual Donors\n个人赞助者`}
                 </Typography>
@@ -340,10 +399,11 @@ export default function SponsorsPage() {
             <Tab
               label={
                 <Typography sx={{
-                  fontSize: 'inherit',
-                  fontWeight: 'inherit',
+                  fontSize: { xs: '1rem', sm: '1.5rem', md: '2.125rem' },
+                  fontWeight: 600,
                   textAlign: 'center',
-                  whiteSpace: 'pre-line'
+                  whiteSpace: 'pre-line',
+                  lineHeight: 1.3
                 }}>
                   {`Enterprise Donors\n企业赞助者`}
                 </Typography>
@@ -354,103 +414,120 @@ export default function SponsorsPage() {
 
         {/* Individual Donors Tab Panel */}
         <Box sx={{ display: selectedTab === 0 ? 'block' : 'none', mt: 3 }}>
-          {renderDonorWithAdminControls(individualDonors, individualColumns)}
+          {renderDonorCards(individualDonors)}
         </Box>
 
         {/* Enterprise Donors Tab Panel */}
         <Box sx={{ display: selectedTab === 1 ? 'block' : 'none', mt: 3 }}>
-          {renderDonorWithAdminControls(enterpriseDonors, enterpriseColumns)}
+          {renderDonorCards(enterpriseDonors)}
         </Box>
       </Container>
 
-      {/* Edit Donor Dialog */}
+      {/* Edit/Add Donor Dialog */}
       <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           {editingDonor ? 'Edit Donor / 编辑捐助者' : 'Add Donor / 添加捐助者'}
         </DialogTitle>
         <DialogContent>
           <TextField
+            name="name"
             fullWidth
             label="Name / 名称"
             value={donorFormData.name}
             onChange={(e) => setDonorFormData({ ...donorFormData, name: e.target.value })}
+            onKeyDown={handleAutoFill}
+            placeholder={donorDefaultValues.name}
             margin="normal"
+            required
+          />
+          <TextField
+            name="amount"
+            fullWidth
+            label="Amount ($) / 金额"
+            type="number"
+            value={donorFormData.amount}
+            onChange={(e) => setDonorFormData({ ...donorFormData, amount: e.target.value })}
+            onKeyDown={handleAutoFill}
+            placeholder={donorDefaultValues.amount}
+            margin="normal"
+            required
+            inputProps={{ min: 0, step: 0.01 }}
           />
           <TextField
             fullWidth
-            label="Notes / 备注"
+            label="Donation Date / 捐款日期"
+            type="date"
+            value={donorFormData.donation_date}
+            onChange={(e) => setDonorFormData({ ...donorFormData, donation_date: e.target.value })}
+            margin="normal"
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            name="message"
+            fullWidth
+            label="Message (Public) / 留言（公开显示）"
+            value={donorFormData.message}
+            onChange={(e) => setDonorFormData({ ...donorFormData, message: e.target.value })}
+            onKeyDown={handleAutoFill}
+            placeholder={donorDefaultValues.message}
+            margin="normal"
+            multiline
+            rows={2}
+            helperText="This message will be displayed publicly on the sponsors page. / 此留言将公开显示在赞助页面。"
+          />
+          <TextField
+            name="notes"
+            fullWidth
+            label="Notes (Admin only) / 备注（仅管理员可见）"
             value={donorFormData.notes}
             onChange={(e) => setDonorFormData({ ...donorFormData, notes: e.target.value })}
+            onKeyDown={handleAutoFill}
+            placeholder={donorDefaultValues.notes}
             margin="normal"
             multiline
             rows={2}
           />
-          <Alert severity="info" sx={{ mt: 2 }}>
-            <Typography variant="body2">
-              Changes will be reflected after editing the CSV file.
-              <br />
-              更改将在编辑CSV文件后生效。
-            </Typography>
-          </Alert>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseEditDialog}>Cancel / 取消</Button>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={handleCloseEditDialog} disabled={saving}>
+            Cancel / 取消
+          </Button>
           <Button
             variant="contained"
             onClick={handleSaveDonor}
+            disabled={saving || !donorFormData.name || !donorFormData.amount}
             sx={{
               backgroundColor: '#FFB84D',
               '&:hover': { backgroundColor: '#FFA833' }
             }}
           >
-            Learn How / 了解方法
+            {saving ? <CircularProgress size={20} /> : 'Save / 保存'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Admin Info Dialog */}
-      <Dialog open={adminInfoOpen} onClose={() => setAdminInfoOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          Donor Management / 捐助者管理
-        </DialogTitle>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Confirm Delete / 确认删除</DialogTitle>
         <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2" gutterBottom>
-              <strong>How to manage donors:</strong>
-            </Typography>
-            <Typography variant="body2" component="div">
-              Donors are stored in CSV files. To add, edit, or delete donors:
-              <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                <li>For individual donors: Edit <code>public/data/individualDonors.csv</code></li>
-                <li>For enterprise donors: Edit <code>public/data/enterpriseDonors.csv</code></li>
-                <li>Save the file and refresh the page</li>
-              </ol>
-            </Typography>
-          </Alert>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2" gutterBottom>
-              <strong>如何管理捐助者：</strong>
-            </Typography>
-            <Typography variant="body2" component="div">
-              捐助者存储在CSV文件中。要添加、编辑或删除捐助者：
-              <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                <li>个人捐助者：编辑 <code>public/data/individualDonors.csv</code></li>
-                <li>企业捐助者：编辑 <code>public/data/enterpriseDonors.csv</code></li>
-                <li>保存文件并刷新页面</li>
-              </ol>
-            </Typography>
-          </Alert>
-          <Alert severity="warning">
-            <Typography variant="body2">
-              <strong>API Integration:</strong> The donor API endpoints (<code>/api/donors</code>) are available for programmatic management. Contact the development team for API access.
-              <br /><br />
-              <strong>API集成：</strong> 捐助者API端点（<code>/api/donors</code>）可用于程序化管理。请联系开发团队获取API访问权限。
-            </Typography>
-          </Alert>
+          <Typography>
+            Are you sure you want to delete donor "{editingDonor?.name}"?
+          </Typography>
+          <Typography color="text.secondary" sx={{ mt: 1 }}>
+            确定要删除捐助者 "{editingDonor?.name}" 吗？
+          </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAdminInfoOpen(false)}>
-            Close / 关闭
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={saving}>
+            Cancel / 取消
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDelete}
+            disabled={saving}
+          >
+            {saving ? <CircularProgress size={20} /> : 'Delete / 删除'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -60,8 +60,8 @@ export default function NavigationButtons({ variant = 'outlined' }) {
 
   return (
     <Container maxWidth="xl" sx={{
-      py: 1,
-      px: 2,
+      py: { xs: 0.5, sm: 1 },
+      px: { xs: 1, sm: 2 },
       backgroundColor: '#FFFFFF',
       boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
       maxWidth: '1200px',
@@ -73,18 +73,18 @@ export default function NavigationButtons({ variant = 'outlined' }) {
           flexWrap: 'wrap',
           justifyContent: 'center',
           alignItems: isFilled ? 'center' : undefined,
-          gap: 1.25,
+          gap: { xs: 0.75, sm: 1.25 },
           width: '100%',
           px: isFilled ? undefined : { xs: 1, sm: 2 },
           ...(isFilled && {
             '& .MuiButton-root': {
-              borderRadius: '12px',
-              px: 2.5,
-              py: 1.75,
+              borderRadius: { xs: '8px', sm: '12px' },
+              px: { xs: 1.5, sm: 2.5 },
+              py: { xs: 0.75, sm: 1.75 },
               backgroundColor: '#FFB84D',
               color: '#FFFFFF',
               fontFamily: 'Roboto, sans-serif',
-              fontSize: '17px',
+              fontSize: { xs: '12px', sm: '17px' },
               textTransform: 'none',
               transition: 'all 0.2s ease',
               border: 'none',
@@ -128,11 +128,11 @@ export default function NavigationButtons({ variant = 'outlined' }) {
                     color: '#FFFFFF'
                   }
                 } : {
-                  borderRadius: '12px',
-                  px: { xs: 1, sm: 2.1 },
-                  py: { xs: 1, sm: 1.75 },
+                  borderRadius: { xs: '8px', sm: '12px' },
+                  px: { xs: 1.5, sm: 2.5 },
+                  py: { xs: 0.75, sm: 1.75 },
                   fontFamily: 'Roboto, sans-serif',
-                  fontSize: { xs: '13px', sm: '17px' },
+                  fontSize: { xs: '12px', sm: '17px' },
                   textTransform: 'none',
                   transition: 'all 0.2s ease',
                   border: '2px solid #FFB84D',
@@ -158,9 +158,9 @@ export default function NavigationButtons({ variant = 'outlined' }) {
               <Typography
                 sx={{
                   fontWeight: 700,
-                  fontSize: isFilled ? '17px' : { xs: '13px', sm: '17px' },
+                  fontSize: { xs: '11px', sm: '17px' },
                   lineHeight: 1.2,
-                  mb: 0.5,
+                  mb: { xs: 0.25, sm: 0.5 },
                   color: isFilled ? undefined : 'inherit'
                 }}
               >
@@ -168,7 +168,7 @@ export default function NavigationButtons({ variant = 'outlined' }) {
               </Typography>
               <Typography
                 sx={{
-                  fontSize: isFilled ? '15px' : { xs: '11px', sm: '15px' },
+                  fontSize: { xs: '10px', sm: '15px' },
                   fontWeight: 700,
                   lineHeight: 1.2,
                   color: isFilled ? undefined : 'inherit'

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 
-const steps = ['Introduction', 'Race Information', 'Current Fitness', 'Training Duration'];
+const steps = ['Introduction', 'Race Info', 'Fitness', 'Duration'];
 
 const raceTypes = [
   { value: '5k', label: '5K' },
@@ -79,42 +79,43 @@ export default function TrainingPage() {
     switch (step) {
       case 0:
         return (
-          <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-            <Typography variant="h5" sx={{ mb: 3, color: '#333' }}>
+          <Box sx={{ maxWidth: 800, mx: 'auto', px: { xs: 1, sm: 2 } }}>
+            <Typography variant="h5" sx={{ mb: { xs: 2, sm: 3 }, color: '#333', fontSize: { xs: '1.1rem', sm: '1.5rem' } }}>
               Our Training Philosophy
+              <br />
               我们的训练理念
             </Typography>
-            <Typography variant="body1" sx={{ mb: 3 }}>
+            <Typography variant="body1" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
               Our AI-powered training system is built on proven methodologies from renowned running coaches and scientific research. We incorporate principles from:
             </Typography>
-            <Box component="ul" sx={{ pl: 4, mb: 3 }}>
-              <Typography component="li" sx={{ mb: 2 }}>
+            <Box component="ul" sx={{ pl: { xs: 2, sm: 4 }, mb: { xs: 2, sm: 3 } }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 <strong>Advanced Marathoning</strong> by Pete Pfitzinger and Scott Douglas
               </Typography>
-              <Typography component="li" sx={{ mb: 2 }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 <strong>Daniels' Running Formula</strong> by Jack Daniels
               </Typography>
-              <Typography component="li" sx={{ mb: 2 }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 <strong>Hansons Marathon Method</strong> by Luke Humphrey
               </Typography>
-              <Typography component="li" sx={{ mb: 2 }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 <strong>80/20 Running</strong> by Matt Fitzgerald
               </Typography>
             </Box>
-            <Typography variant="body1" sx={{ mb: 3 }}>
+            <Typography variant="body1" sx={{ mb: { xs: 2, sm: 3 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
               Our system analyzes your current fitness level, race goals, and available training time to create a personalized plan that balances:
             </Typography>
-            <Box component="ul" sx={{ pl: 4, mb: 3 }}>
-              <Typography component="li" sx={{ mb: 2 }}>
+            <Box component="ul" sx={{ pl: { xs: 2, sm: 4 }, mb: { xs: 2, sm: 3 } }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 Progressive overload and recovery
               </Typography>
-              <Typography component="li" sx={{ mb: 2 }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 Aerobic and anaerobic development
               </Typography>
-              <Typography component="li" sx={{ mb: 2 }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 Race-specific workouts
               </Typography>
-              <Typography component="li" sx={{ mb: 2 }}>
+              <Typography component="li" sx={{ mb: { xs: 1, sm: 2 }, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 Injury prevention
               </Typography>
             </Box>
@@ -225,44 +226,64 @@ export default function TrainingPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 0.25, sm: 0.5 } }}>
       {/* Logo Section */}
       <Logo />
-      
+
       {/* Navigation Buttons */}
       <NavigationButtons />
-      
+
       {/* Training Section */}
-      <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: { xs: 2, sm: 4 } }}>
         <Typography
           variant="h4"
           sx={{
             fontWeight: 600,
             color: '#FFA500',
-            mb: 3
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
           }}
         >
           Training with Us
+          <br />
           和我们一起训练
         </Typography>
 
-        <Box sx={{ 
+        <Box sx={{
           backgroundColor: 'white',
-          borderRadius: '12px',
-          p: { xs: 3, md: 6 },
+          borderRadius: { xs: '8px', sm: '12px' },
+          p: { xs: 2, sm: 3, md: 6 },
           boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
         }}>
-          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-            {steps.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
+          <Box sx={{ width: '100%', overflowX: 'auto', mb: { xs: 3, sm: 4 } }}>
+            <Stepper
+              activeStep={activeStep}
+              alternativeLabel
+              sx={{
+                minWidth: { xs: 300, sm: 'auto' },
+                '& .MuiStepLabel-label': {
+                  fontSize: { xs: '0.6rem', sm: '0.875rem' },
+                  mt: { xs: 0.5, sm: 1 }
+                },
+                '& .MuiStepIcon-root': {
+                  fontSize: { xs: '1.1rem', sm: '1.5rem' }
+                },
+                '& .MuiStepConnector-line': {
+                  minWidth: { xs: 20, sm: 40 }
+                }
+              }}
+            >
+              {steps.map((label) => (
+                <Step key={label}>
+                  <StepLabel>{label}</StepLabel>
+                </Step>
+              ))}
+            </Stepper>
+          </Box>
 
           {renderStepContent(activeStep)}
 
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: { xs: 1, sm: 2 }, mt: { xs: 3, sm: 4 } }}>
             {activeStep > 0 && (
               <Button
                 variant="outlined"
@@ -274,9 +295,9 @@ export default function TrainingPage() {
                     borderColor: '#FFA500',
                     backgroundColor: 'rgba(255, 165, 0, 0.1)',
                   },
-                  px: 4,
-                  py: 1.5,
-                  fontSize: '1.1rem'
+                  px: { xs: 2, sm: 4 },
+                  py: { xs: 1, sm: 1.5 },
+                  fontSize: { xs: '0.875rem', sm: '1.1rem' }
                 }}
               >
                 Back 返回
@@ -296,9 +317,9 @@ export default function TrainingPage() {
                     backgroundColor: 'rgba(255, 165, 0, 0.5)',
                     color: 'white'
                   },
-                  px: 4,
-                  py: 1.5,
-                  fontSize: '1.1rem'
+                  px: { xs: 2, sm: 4 },
+                  py: { xs: 1, sm: 1.5 },
+                  fontSize: { xs: '0.875rem', sm: '1.1rem' }
                 }}
               >
                 Next 下一步
@@ -317,9 +338,9 @@ export default function TrainingPage() {
                     backgroundColor: 'rgba(255, 165, 0, 0.5)',
                     color: 'white'
                   },
-                  px: 4,
-                  py: 1.5,
-                  fontSize: '1.1rem'
+                  px: { xs: 2, sm: 4 },
+                  py: { xs: 1, sm: 1.5 },
+                  fontSize: { xs: '0.875rem', sm: '1.1rem' }
                 }}
               >
                 Generate Plan 生成计划

@@ -1,8 +1,8 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, Index, Time, Date, Enum
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, Index, Time, Date, Enum, ForeignKey, UniqueConstraint
 from sqlalchemy.types import DECIMAL
 import enum
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
 import os
 from dotenv import load_dotenv
@@ -45,26 +45,30 @@ Base = declarative_base()
 # Donor Model for consolidated donor table
 class Donor(Base):
     __tablename__ = "donors"
-    
+
     donation_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     donor_id = Column(String(50), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     donor_type = Column(String(20), nullable=False)  # 'individual' or 'enterprise'
     donation_event = Column(String(255), default='General Support')
     amount = Column(DECIMAL(10, 2), nullable=False)
+    quantity = Column(Integer, default=1)  # Number of donations
+    donation_date = Column(Date)  # Date of donation
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     # Additional fields from original CSV data
     source = Column(String(255))
     receipt_confirmed = Column(Boolean, default=False)
     notes = Column(Text)
-    
+    message = Column(Text)  # Optional donor message to display publicly
+
     # Indexes for better query performance
     __table_args__ = (
         Index('idx_donor_type', 'donor_type'),
         Index('idx_donation_event', 'donation_event'),
         Index('idx_amount', 'amount'),
+        Index('idx_donation_date', 'donation_date'),
         Index('idx_created_at', 'created_at'),
     )
 
@@ -128,6 +132,8 @@ class Member(Base):
     committee_position_cn = Column(String(100))
 
     # Profile
+    first_name = Column(String(50))
+    last_name = Column(String(50))
     display_name = Column(String(100))
     display_name_cn = Column(String(100))
     phone = Column(String(20))
@@ -169,6 +175,159 @@ class Member(Base):
         Index('idx_member_status', 'status'),
         Index('idx_member_nyrr_id', 'nyrr_member_id'),
         Index('idx_member_email', 'email'),
+    )
+
+
+# Event Model for club events/activities
+class Event(Base):
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    chinese_name = Column(String(255))
+    date = Column(Date, nullable=False)
+    time = Column(String(50))  # Store as string like "8:00 AM"
+    location = Column(String(255))
+    chinese_location = Column(String(255))
+    description = Column(Text)
+    chinese_description = Column(Text)
+    image = Column(String(500))
+    signup_link = Column(String(500))
+    status = Column(String(50), default='Upcoming')  # 'Upcoming', 'Highlight', 'Cancelled'
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Indexes for better query performance
+    __table_args__ = (
+        Index('idx_event_status', 'status'),
+        Index('idx_event_date', 'date'),
+    )
+
+
+# Meeting Minutes Model for committee meeting records
+class MeetingMinutes(Base):
+    __tablename__ = "meeting_minutes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    meeting_date = Column(Date, nullable=False)
+    content = Column(Text, nullable=False)  # HTML content from rich text editor
+    created_by = Column(String(100))  # Name of admin who created
+    created_by_id = Column(Integer)  # Member ID of creator
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Indexes for better query performance
+    __table_args__ = (
+        Index('idx_meeting_date', 'meeting_date'),
+        Index('idx_meeting_created_at', 'created_at'),
+    )
+
+
+# Comment Model for event comments
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    member_id = Column(Integer, ForeignKey('members.id', ondelete='CASCADE'), nullable=False)
+    firebase_uid = Column(String(128), nullable=False)
+    content = Column(Text, nullable=False)
+    author_name = Column(String(100))
+    author_photo_url = Column(String(500))
+
+    # Moderation fields
+    is_highlighted = Column(Boolean, default=False)
+    is_hidden = Column(Boolean, default=False)
+    hidden_by = Column(Integer, ForeignKey('members.id', ondelete='SET NULL'))
+    hidden_at = Column(DateTime)
+    hidden_reason = Column(String(255))
+
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    event = relationship("Event", backref="comments")
+    member = relationship("Member", foreign_keys=[member_id], backref="comments")
+    hidden_by_member = relationship("Member", foreign_keys=[hidden_by])
+
+    __table_args__ = (
+        Index('idx_comment_event_id', 'event_id'),
+        Index('idx_comment_member_id', 'member_id'),
+        Index('idx_comment_created_at', 'created_at'),
+    )
+
+
+# Like Model for event likes
+class Like(Base):
+    __tablename__ = "likes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    member_id = Column(Integer, ForeignKey('members.id', ondelete='CASCADE'), nullable=True)  # Nullable for anonymous
+    firebase_uid = Column(String(128))  # Nullable for anonymous
+    anonymous_id = Column(String(128))  # For non-logged-in users (stored in localStorage)
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    event = relationship("Event", backref="likes")
+    member = relationship("Member", backref="likes")
+
+    __table_args__ = (
+        Index('idx_like_event_id', 'event_id'),
+        UniqueConstraint('event_id', 'member_id', name='uq_like_event_member'),
+        UniqueConstraint('event_id', 'anonymous_id', name='uq_like_event_anonymous'),
+    )
+
+
+# Reaction Model for event emoji reactions
+class Reaction(Base):
+    __tablename__ = "reactions"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    member_id = Column(Integer, ForeignKey('members.id', ondelete='CASCADE'), nullable=True)  # Nullable for anonymous
+    firebase_uid = Column(String(128))  # Nullable for anonymous
+    anonymous_id = Column(String(128))  # For non-logged-in users
+    emoji = Column(String(10), nullable=False)  # Store emoji character
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    event = relationship("Event", backref="reactions")
+    member = relationship("Member", backref="reactions")
+
+    __table_args__ = (
+        Index('idx_reaction_event_id', 'event_id'),
+        Index('idx_reaction_emoji', 'emoji'),
+        UniqueConstraint('event_id', 'member_id', 'emoji', name='uq_reaction_event_member_emoji'),
+        UniqueConstraint('event_id', 'anonymous_id', 'emoji', name='uq_reaction_event_anonymous_emoji'),
+    )
+
+
+# EventCommentSettings Model for per-event engagement settings
+class EventCommentSettings(Base):
+    __tablename__ = "event_comment_settings"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), nullable=False, unique=True)
+
+    comments_enabled = Column(Boolean, default=True)
+    likes_enabled = Column(Boolean, default=True)
+    reactions_enabled = Column(Boolean, default=True)
+
+    closed_at = Column(DateTime)
+    closed_by = Column(Integer, ForeignKey('members.id', ondelete='SET NULL'))
+    closed_reason = Column(String(255))
+
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    event = relationship("Event", backref="comment_settings")
+    closed_by_member = relationship("Member")
+
+    __table_args__ = (
+        Index('idx_event_comment_settings_event_id', 'event_id'),
     )
 
 

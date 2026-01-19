@@ -171,7 +171,7 @@ export default function RecordsPage() {
   };
 
   const getTableHeaders = () => {
-    return ['Rank', 'Name', 'Registration Points', 'Check-in Points', 'Total Points'];
+    return ['Rank', 'Name', 'Registration Points', 'Check-in', 'Total Points'];
   };
 
   const getRecordsTableHeaders = () => {
@@ -228,16 +228,16 @@ export default function RecordsPage() {
 
     return displayData.map((row) => (
       <TableRow key={row.rank} hover>
-        <TableCell>{row.rank}</TableCell>
-        <TableCell>{row.fullName}</TableCell>
-        <TableCell>{row.time}</TableCell>
-        <TableCell>{row.race}</TableCell>
+        <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.rank}</TableCell>
+        <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.fullName}</TableCell>
+        <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.time}</TableCell>
+        <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.race}</TableCell>
       </TableRow>
     ));
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 0.25, sm: 0.5 } }}>
       {/* Logo Section */}
       <Logo />
       
@@ -259,16 +259,18 @@ export default function RecordsPage() {
       )}
 
       {/* Records Section */}
-      <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: { xs: 2, sm: 4 } }}>
         <Typography
           variant="h4"
           sx={{
             fontWeight: 600,
             color: '#FFA500',
-            mb: 3
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
           }}
         >
           Club Records
+          <br />
           俱乐部记录
         </Typography>
 
@@ -317,6 +319,7 @@ export default function RecordsPage() {
           onChange={handleRecordsTabChange}
           variant="scrollable"
           scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             mb: 3,
             '& .MuiTab-root': {
@@ -324,30 +327,43 @@ export default function RecordsPage() {
               '&.Mui-selected': {
                 color: '#FFA500',
               },
-              minWidth: 0,
-              flex: 1,
-              whiteSpace: 'nowrap',
-              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              minWidth: { xs: 60, sm: 80 },
+              px: { xs: 1, sm: 2 },
+              py: { xs: 1, sm: 1.5 },
+              fontSize: { xs: '0.65rem', sm: '0.875rem' }
             },
             '& .MuiTabs-indicator': {
               backgroundColor: '#FFA500',
             },
+            '& .MuiTabs-scrollButtons': {
+              '&.Mui-disabled': { opacity: 0.3 },
+            },
           }}
         >
           {distances.map((distance, index) => (
-            <Tab 
-              key={index} 
+            <Tab
+              key={index}
               label={
-                <Box sx={{ whiteSpace: 'pre-line', textAlign: 'center' }}>
+                <Box sx={{
+                  whiteSpace: 'pre-line',
+                  textAlign: 'center',
+                  lineHeight: 1.2,
+                  fontSize: { xs: '0.6rem', sm: '0.875rem' }
+                }}>
                   {distance.label}
                 </Box>
-              } 
+              }
             />
           ))}
         </Tabs>
 
         {/* Records Table */}
-        <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+        <Box sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          gap: 2,
+          mb: 4
+        }}>
           {/* Men's Records Table */}
           <TableContainer component={Paper} sx={{ flex: 1 }}>
             <Typography
@@ -355,20 +371,28 @@ export default function RecordsPage() {
               sx={{
                 fontWeight: 600,
                 color: '#FFA500',
-                p: 2,
-                borderBottom: '1px solid #FFA500'
+                p: { xs: 1.5, sm: 2 },
+                borderBottom: '1px solid #FFA500',
+                fontSize: { xs: '1rem', sm: '1.25rem' }
               }}
             >
               Men's Records
               男子记录
             </Typography>
-            <Table>
+            <Table size="small">
               <TableHead>
                 <TableRow>
                   {getRecordsTableHeaders().map((header, index) => (
                     <TableCell
                       key={index}
-                      sx={{ fontWeight: 'bold', backgroundColor: '#FFA500', color: 'white' }}
+                      sx={{
+                        fontWeight: 'bold',
+                        backgroundColor: '#FFA500',
+                        color: 'white',
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 0.75, sm: 1 }
+                      }}
                     >
                       {header}
                     </TableCell>
@@ -388,20 +412,28 @@ export default function RecordsPage() {
               sx={{
                 fontWeight: 600,
                 color: '#FFA500',
-                p: 2,
-                borderBottom: '1px solid #FFA500'
+                p: { xs: 1.5, sm: 2 },
+                borderBottom: '1px solid #FFA500',
+                fontSize: { xs: '1rem', sm: '1.25rem' }
               }}
             >
               Women's Records
               女子记录
             </Typography>
-            <Table>
+            <Table size="small">
               <TableHead>
                 <TableRow>
                   {getRecordsTableHeaders().map((header, index) => (
                     <TableCell
                       key={index}
-                      sx={{ fontWeight: 'bold', backgroundColor: '#FFA500', color: 'white' }}
+                      sx={{
+                        fontWeight: 'bold',
+                        backgroundColor: '#FFA500',
+                        color: 'white',
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 0.75, sm: 1 }
+                      }}
                     >
                       {header}
                     </TableCell>
@@ -411,10 +443,10 @@ export default function RecordsPage() {
               <TableBody>
                 {getFilteredWomenRecordsData().map((row) => (
                   <TableRow key={row.rank} hover>
-                    <TableCell>{row.rank}</TableCell>
-                    <TableCell>{row.fullName}</TableCell>
-                    <TableCell>{row.time}</TableCell>
-                    <TableCell>{row.race}</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.rank}</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.fullName}</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.time}</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}>{row.race}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -427,10 +459,12 @@ export default function RecordsPage() {
           sx={{
             fontWeight: 600,
             color: '#FFA500',
-            mb: 3
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
           }}
         >
           Club Credits
+          <br />
           俱乐部积分榜
         </Typography>
 
@@ -438,7 +472,9 @@ export default function RecordsPage() {
         <Tabs
           value={currentTab}
           onChange={handleTabChange}
-          variant="fullWidth"
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             mb: 3,
             '& .MuiTab-root': {
@@ -446,22 +482,22 @@ export default function RecordsPage() {
               '&.Mui-selected': {
                 color: '#FFA500',
               },
-              minWidth: 0,
-              flex: 1,
-              whiteSpace: 'nowrap',
-              fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              minWidth: { xs: 'auto', sm: 120 },
+              px: { xs: 1.5, sm: 2 },
+              fontSize: { xs: '0.7rem', sm: '0.875rem' }
             },
             '& .MuiTabs-indicator': {
               backgroundColor: '#FFA500',
             },
-            maxWidth: '100%',
-            width: '100%'
+            '& .MuiTabs-scrollButtons': {
+              '&.Mui-disabled': { opacity: 0.3 },
+            },
           }}
         >
-          <Tab label="Total Credit 总积分" />
-          <Tab label="Activity Credit 活动积分" />
-          <Tab label="Race Credit 比赛积分" />
-          <Tab label="Volunteer Credit 志愿者积分" />
+          <Tab label={<Box sx={{ textAlign: 'center' }}>Total Credit<br/>总积分</Box>} />
+          <Tab label={<Box sx={{ textAlign: 'center' }}>Activity Credit<br/>活动积分</Box>} />
+          <Tab label={<Box sx={{ textAlign: 'center' }}>Race Credit<br/>比赛积分</Box>} />
+          <Tab label={<Box sx={{ textAlign: 'center' }}>Volunteer Credit<br/>志愿者积分</Box>} />
         </Tabs>
 
         {loading ? (
@@ -553,10 +589,12 @@ export default function RecordsPage() {
             sx={{
               fontWeight: 600,
               color: '#FFA500',
-              mb: 3
+              mb: { xs: 2, sm: 3 },
+              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
             }}
           >
             Club Entry Rules
+            <br />
             俱乐部积分规则
           </Typography>
           <ClubEntryRules />

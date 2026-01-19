@@ -1,7 +1,6 @@
 // List of meeting files - this will be updated as new files are added
-const meetingFiles = [
-  '2025-05-30.md'
-];
+// Note: Meeting minutes are now stored in the database. This is kept for legacy compatibility.
+const meetingFiles = [];
 
 export const getMeetingFiles = () => {
   return meetingFiles;

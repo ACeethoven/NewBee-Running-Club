@@ -14,3 +14,39 @@ export {
   getMembersForCredits,
   getCommitteeMembers
 } from './members';
+export {
+  getAllEvents,
+  getEventsByStatus,
+  getEventById,
+  createEvent,
+  updateEvent,
+  deleteEvent
+} from './events';
+export {
+  getAllMeetingMinutes,
+  getMeetingMinutesById,
+  createMeetingMinutes,
+  updateMeetingMinutes,
+  deleteMeetingMinutes
+} from './meetingMinutes';
+export {
+  ALLOWED_EMOJIS,
+  getAnonymousId,
+  getEventComments,
+  getAllEventComments,
+  createComment,
+  deleteComment,
+  toggleCommentHighlight,
+  hideComment,
+  unhideComment,
+  getEventLikes,
+  toggleLike,
+  removeLike,
+  getEventReactions,
+  toggleReaction,
+  removeReaction,
+  getEventEngagement,
+  getBatchEngagement,
+  getEventSettings,
+  updateEventSettings
+} from './engagement';

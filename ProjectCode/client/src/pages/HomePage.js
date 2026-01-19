@@ -33,7 +33,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 0.25, sm: 0.5 } }}>
       {/* Logo Section */}
       <Logo />
 
@@ -41,14 +41,14 @@ export default function HomePage() {
       <NavigationButtons variant="filled" />
 
       {/* Master Image Section */}
-      <Container maxWidth="xl" sx={{ px: 2, mt: 0 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 0 }}>
         <Box
           sx={{
             width: '100%',
-            height: '500px',
+            height: { xs: '200px', sm: '350px', md: '500px' },
             overflow: 'hidden',
             position: 'relative',
-            borderRadius: '12px',
+            borderRadius: { xs: '8px', sm: '12px' },
             boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
           }}
         >
@@ -67,7 +67,7 @@ export default function HomePage() {
                 left: 0,
                 opacity: index === currentImageIndex ? 1 : 0,
                 transition: 'opacity 1s ease-in-out',
-                borderRadius: '12px',
+                borderRadius: { xs: '8px', sm: '12px' },
               }}
             />
           ))}
@@ -75,34 +75,36 @@ export default function HomePage() {
       </Container>
 
       {/* Event Registration Text */}
-      <Container maxWidth="xl" sx={{ px: 2, mt: 2 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: { xs: 1, sm: 2 } }}>
         <Box>
           <Typography
             variant="h4"
             sx={{
               fontWeight: 600,
               color: '#FFA500',
-              mb: 3
+              mb: { xs: 2, sm: 3 },
+              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
             }}
           >
             Event Registration
+            <br />
             活动报名
           </Typography>
         </Box>
       </Container>
 
       {/* Event Registration Section */}
-      <Container maxWidth="xl" sx={{ px: 2, mt: 0 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 0 }}>
         <Box
           sx={{
             width: '100%',
-            height: '500px',
+            height: { xs: '200px', sm: '350px', md: '500px' },
             overflow: 'hidden',
             position: 'relative',
-            borderRadius: '12px',
+            borderRadius: { xs: '8px', sm: '12px' },
             cursor: 'pointer',
             backgroundColor: '#4a4a4a',
-            display: 'block', // Ensure block display for <a>
+            display: 'block',
             '&:hover': {
               backgroundColor: '#5a5a5a',
             },
@@ -118,41 +120,43 @@ export default function HomePage() {
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              borderRadius: '12px',
+              borderRadius: { xs: '8px', sm: '12px' },
             }}
           />
         </Box>
       </Container>
 
       {/* Highlights Text */}
-      <Container maxWidth="xl" sx={{ px: 2, mt: 2 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: { xs: 1, sm: 2 } }}>
         <Box>
           <Typography
             variant="h4"
             sx={{
               fontWeight: 600,
               color: '#FFA500',
-              mb: 3
+              mb: { xs: 2, sm: 3 },
+              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
             }}
           >
             Event Highlights
+            <br />
             活动高光
           </Typography>
         </Box>
       </Container>
 
       {/* Highlights Section */}
-      <Container maxWidth="xl" sx={{ px: 2, mt: 0 }}>
+      <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: 0 }}>
         <Box
           sx={{
             width: '100%',
-            height: '500px',
+            height: { xs: '200px', sm: '350px', md: '500px' },
             overflow: 'hidden',
             position: 'relative',
-            borderRadius: '12px',
+            borderRadius: { xs: '8px', sm: '12px' },
             cursor: 'pointer',
             backgroundColor: '#4a4a4a',
-            display: 'block', // Ensure block display for <a>
+            display: 'block',
             '&:hover': {
               backgroundColor: '#5a5a5a',
             },
@@ -168,7 +172,7 @@ export default function HomePage() {
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              borderRadius: '12px',
+              borderRadius: { xs: '8px', sm: '12px' },
             }}
           />
         </Box>

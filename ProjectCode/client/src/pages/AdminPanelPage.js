@@ -18,6 +18,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
+import MeetingMinutesEditor from '../components/MeetingMinutesEditor';
 import { useAuth } from '../context/AuthContext';
 import { getPendingMembers, approveMember, rejectMember, getMemberByFirebaseUid } from '../api/members';
 import { committeeMembers } from '../data/committeeMembers';
@@ -191,7 +192,8 @@ export default function AdminPanelPage() {
           sx={{
             fontWeight: 600,
             color: '#FFA500',
-            mb: 3
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
           }}
         >
           Admin Panel - Pending Applications
@@ -277,6 +279,9 @@ export default function AdminPanelPage() {
             ))}
           </Box>
         )}
+
+        {/* Meeting Minutes Section */}
+        <MeetingMinutesEditor firebaseUid={currentUser?.uid} />
       </Container>
 
       {/* Confirmation Dialog */}

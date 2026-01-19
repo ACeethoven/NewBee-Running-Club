@@ -1,0 +1,67 @@
+/**
+ * Donors API functions
+ */
+
+import { api } from './client';
+
+/**
+ * Get all donors (individual and enterprise)
+ * @returns {Promise<Object>} Object with individual_donors and enterprise_donors arrays
+ */
+export async function getAllDonors() {
+  return api.get('/api/donors');
+}
+
+/**
+ * Get donors by type
+ * @param {string} donorType - 'individual' or 'enterprise'
+ * @returns {Promise<Array>} List of donors
+ */
+export async function getDonorsByType(donorType) {
+  return api.get(`/api/donors/${donorType}`);
+}
+
+/**
+ * Get a specific donor by donor_id
+ * @param {string} donorId - Donor ID
+ * @returns {Promise<Object>} Donor data
+ */
+export async function getDonorById(donorId) {
+  return api.get(`/api/donors/id/${donorId}`);
+}
+
+/**
+ * Create a new donor
+ * @param {Object} donorData - Donor data
+ * @returns {Promise<Object>} Created donor
+ */
+export async function createDonor(donorData) {
+  return api.post('/api/donors', donorData);
+}
+
+/**
+ * Update a donor
+ * @param {string} donorId - Donor ID
+ * @param {Object} donorData - Updated donor data
+ * @returns {Promise<Object>} Updated donor
+ */
+export async function updateDonor(donorId, donorData) {
+  return api.put(`/api/donors/${donorId}`, donorData);
+}
+
+/**
+ * Delete a donor
+ * @param {string} donorId - Donor ID
+ * @returns {Promise<Object>} Deletion result
+ */
+export async function deleteDonor(donorId) {
+  return api.delete(`/api/donors/${donorId}`);
+}
+
+/**
+ * Get donation statistics summary
+ * @returns {Promise<Array>} Donation summary by type
+ */
+export async function getDonationSummary() {
+  return api.get('/api/donors/stats/summary');
+}

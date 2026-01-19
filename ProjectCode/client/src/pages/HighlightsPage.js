@@ -1,14 +1,19 @@
 import FilterListIcon from '@mui/icons-material/FilterList';
 import { Box, Button, Card, CardContent, CardMedia, Container, Grid, IconButton, MenuItem, TextField, Typography } from '@mui/material';
-import Papa from 'papaparse';
 import { useEffect, useState } from 'react';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
+import EventEngagementBar from '../components/EventEngagementBar';
+import EventDetailModal from '../components/EventDetailModal';
+import { getEventsByStatus, getBatchEngagement } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 export default function HighlightsPage() {
+  const { currentUser } = useAuth();
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [pastEvents, setPastEvents] = useState([]);
   const [featuredEvents, setFeaturedEvents] = useState([]);
+  const [engagementData, setEngagementData] = useState({});
   const [filters, setFilters] = useState({
     showAvailable: true,
     date: '',
@@ -23,77 +28,78 @@ export default function HighlightsPage() {
   };
 
   useEffect(() => {
-    // Fetch and parse the CSV file
-    fetch('/data/events.csv')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to load events data');
-        }
-        return response.text();
-      })
-      .then(csvData => {
-        Papa.parse(csvData, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header) => header.trim(),
-          transform: (value) => value.trim(),
-          complete: (results) => {
-            console.log('Raw parsed results:', results.data);
-            // Sort events by date and time, and filter for past events
-            const sortedEvents = results.data
-              .filter(event => event.id) // Remove empty rows
-              .map(event => {
-                // Parse the event date and time
-                const [year, month, day] = event.date.split('-').map(Number);
-                const [hours, minutes] = event.time.split(':').map(Number);
-                const isPM = event.time.toLowerCase().includes('pm');
-                const eventDate = new Date(year, month - 1, day, isPM ? hours + 12 : hours, minutes);
-                console.log('Event:', event.name, 'Date:', event.date, 'Time:', event.time, 'Status:', event.status, 'Image:', event.image, 'Raw event:', event);
-                
-                return {
-                  ...event,
-                  image: event.image ? `/${event.image}` : '/images/2025/20250517_bk_half.jpg', // Use latest event image as placeholder
-                  parsedDate: eventDate, // Store the parsed date for comparison
-                  time: event.time, // Ensure time is preserved exactly as in CSV
-                  date: event.date // Ensure date is preserved exactly as in CSV
-                };
-              })
-              .filter(event => event.status === 'Highlight') // Filter by Highlight status
-              .sort((a, b) => b.date.localeCompare(a.date)); // Sort in reverse chronological order
-            
-            console.log('Highlight events:', sortedEvents);
-            
-            // Set past events
-            setPastEvents(sortedEvents);
-            
-            // Set featured events (first 3 events)
-            const featured = sortedEvents.slice(0, 3).map(event => {
-              console.log('Creating featured event:', event.name, 'with image:', event.image);
-              return {
-                id: event.id,
-                title: event.name,
-                chineseTitle: event.chineseName,
-                image: event.image,
-                description: event.description,
-                date: event.date,
-                time: event.time,
-                location: event.location,
-                chineseLocation: event.chineseLocation,
-                chineseDescription: event.chineseDescription
-              };
-            });
-            console.log('Featured events:', featured);
-            setFeaturedEvents(featured);
-          },
-          error: (error) => {
-            console.error('Error parsing CSV:', error);
-          }
+    // Fetch events from API
+    const fetchEvents = async () => {
+      try {
+        const events = await getEventsByStatus('Highlight');
+        console.log('Fetched highlight events from API:', events);
+
+        // Transform API response to match expected format
+        const transformedEvents = events.map(event => {
+          // Parse the event date and time for filtering
+          const [year, month, day] = event.date.split('-').map(Number);
+          const timeParts = event.time ? event.time.split(':').map(Number) : [0, 0];
+          const isPM = event.time ? event.time.toLowerCase().includes('pm') : false;
+          const eventDate = new Date(year, month - 1, day, isPM ? timeParts[0] + 12 : timeParts[0], timeParts[1] || 0);
+
+          return {
+            id: event.id,
+            name: event.name,
+            chineseName: event.chinese_name,
+            date: event.date,
+            time: event.time,
+            location: event.location,
+            chineseLocation: event.chinese_location,
+            description: event.description,
+            chineseDescription: event.chinese_description,
+            image: event.image || '/images/2025/20250517_bk_half.jpg',
+            signupLink: event.signup_link,
+            status: event.status,
+            parsedDate: eventDate
+          };
+        }).sort((a, b) => b.date.localeCompare(a.date)); // Sort in reverse chronological order
+
+        console.log('Transformed highlight events:', transformedEvents);
+
+        // Set past events
+        setPastEvents(transformedEvents);
+
+        // Set featured events (first 3 events)
+        const featured = transformedEvents.slice(0, 3).map(event => {
+          console.log('Creating featured event:', event.name, 'with image:', event.image);
+          return {
+            id: event.id,
+            title: event.name,
+            chineseTitle: event.chineseName,
+            image: event.image,
+            description: event.description,
+            date: event.date,
+            time: event.time,
+            location: event.location,
+            chineseLocation: event.chineseLocation,
+            chineseDescription: event.chineseDescription
+          };
         });
-      })
-      .catch(error => {
+        console.log('Featured events:', featured);
+        setFeaturedEvents(featured);
+
+        // Fetch engagement data for all events
+        if (transformedEvents.length > 0) {
+          try {
+            const eventIds = transformedEvents.map(e => e.id);
+            const batchResult = await getBatchEngagement(eventIds, currentUser?.uid);
+            setEngagementData(batchResult.engagements || {});
+          } catch (engagementError) {
+            console.error('Error fetching engagement data:', engagementError);
+          }
+        }
+      } catch (error) {
         console.error('Error loading events:', error);
-      });
-  }, []);
+      }
+    };
+
+    fetchEvents();
+  }, [currentUser?.uid]);
 
   const handleEventClick = (event) => {
     // For featured events, we need to find the full event data
@@ -159,10 +165,12 @@ export default function HighlightsPage() {
           sx={{
             fontWeight: 600,
             color: '#FFA500',
-            mb: 3
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
           }}
         >
           Featured Highlights
+          <br />
           精选回顾
         </Typography>
         
@@ -200,9 +208,14 @@ export default function HighlightsPage() {
                   <Typography gutterBottom variant="subtitle1" color="text.secondary">
                     {event.chineseTitle}
                   </Typography>
-                  <Button 
-                    variant="contained" 
-                    sx={{ 
+                  <EventEngagementBar
+                    eventId={event.id}
+                    initialData={engagementData[event.id]}
+                  />
+                  <Button
+                    variant="contained"
+                    sx={{
+                      mt: 2,
                       backgroundColor: '#FFB84D',
                       color: 'white',
                       textTransform: 'none',
@@ -238,10 +251,12 @@ export default function HighlightsPage() {
             variant="h4"
             sx={{
               fontWeight: 600,
-              color: '#FFA500'
+              color: '#FFA500',
+              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
             }}
           >
             Past Events
+            <br />
             历史活动
           </Typography>
           
@@ -320,11 +335,12 @@ export default function HighlightsPage() {
         {/* Events List */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {filteredEvents.map((event) => (
-            <Card 
+            <Card
               key={event.id}
-              sx={{ 
+              sx={{
                 display: 'flex',
-                height: '200px',
+                flexDirection: { xs: 'column', sm: 'row' },
+                height: { xs: 'auto', sm: '200px' },
                 overflow: 'hidden',
                 cursor: 'pointer',
                 '&:hover': {
@@ -335,11 +351,33 @@ export default function HighlightsPage() {
               }}
               onClick={() => handleEventClick(event)}
             >
-              {/* Time Column */}
+              {/* Mobile: Image at top */}
               <Box
                 sx={{
+                  display: { xs: 'block', sm: 'none' },
+                  width: '100%',
+                  height: '150px'
+                }}
+              >
+                <CardMedia
+                  component="img"
+                  sx={{
+                    height: '100%',
+                    width: '100%',
+                    objectFit: 'cover',
+                    backgroundColor: '#f5f5f5'
+                  }}
+                  image={event.image}
+                  alt={event.name}
+                  onError={handleImageError}
+                />
+              </Box>
+
+              {/* Time Column - hidden on mobile, shown on sm+ */}
+              <Box
+                sx={{
+                  display: { xs: 'none', sm: 'flex' },
                   width: '120px',
-                  display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -358,9 +396,10 @@ export default function HighlightsPage() {
                 </Typography>
               </Box>
 
-              {/* Image Column */}
+              {/* Image Column - hidden on mobile, shown on sm+ */}
               <Box
                 sx={{
+                  display: { xs: 'none', sm: 'block' },
                   width: '200px',
                   flexShrink: 0
                 }}
@@ -388,26 +427,37 @@ export default function HighlightsPage() {
                   flexDirection: 'column'
                 }}
               >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                {/* Mobile: Show date/time at top of content */}
+                <Box sx={{ display: { xs: 'flex', sm: 'none' }, gap: 2, mb: 1, color: '#FFA500' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    {event.time}
+                  </Typography>
+                  <Typography variant="subtitle1" color="text.secondary">
+                    {event.date}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'flex-start' }, mb: 1, gap: 1 }}>
                   <Box>
-                    <Typography variant="h6" gutterBottom>
+                    <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                       {event.name}
                     </Typography>
-                    <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                    <Typography variant="subtitle1" color="text.secondary" gutterBottom sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       {event.chineseName}
                     </Typography>
                   </Box>
-                  <Button 
+                  <Button
                     variant="contained"
-                    sx={{ 
+                    sx={{
                       backgroundColor: '#FFB84D',
                       color: 'white',
                       textTransform: 'none',
-                      fontSize: '16px',
-                      px: 2,
-                      py: 1.5,
+                      fontSize: { xs: '14px', sm: '16px' },
+                      px: { xs: 1.5, sm: 2 },
+                      py: { xs: 1, sm: 1.5 },
                       borderRadius: '12px',
                       border: '2px solid #FFB84D',
+                      flexShrink: 0,
                       '&:hover': {
                         backgroundColor: '#FFA833',
                         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
@@ -432,6 +482,12 @@ export default function HighlightsPage() {
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   {event.chineseLocation}
                 </Typography>
+                <Box sx={{ mt: 'auto' }}>
+                  <EventEngagementBar
+                    eventId={event.id}
+                    initialData={engagementData[event.id]}
+                  />
+                </Box>
               </Box>
             </Card>
           ))}
@@ -440,116 +496,10 @@ export default function HighlightsPage() {
 
       {/* Event Detail Modal */}
       {selectedEvent && (
-        <Box
-          sx={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-          onClick={() => setSelectedEvent(null)}
-        >
-          <Card
-            sx={{
-              maxWidth: 600,
-              width: '90%',
-              maxHeight: '90vh',
-              overflow: 'auto'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardMedia
-              component="img"
-              height="300"
-              image={selectedEvent.image}
-              alt={selectedEvent.name || selectedEvent.title}
-              onError={handleImageError}
-              sx={{
-                objectFit: 'cover',
-                backgroundColor: '#f5f5f5'
-              }}
-            />
-            <CardContent>
-              <Typography variant="h5" gutterBottom>
-                {selectedEvent.name || selectedEvent.title}
-              </Typography>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                {selectedEvent.chineseName || selectedEvent.chineseTitle}
-              </Typography>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Date: {selectedEvent.date}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Time: {selectedEvent.time}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Location: {selectedEvent.location}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  {selectedEvent.chineseLocation}
-                </Typography>
-              </Box>
-              <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-line' }}>
-                {selectedEvent.description.split(/(@?https?:\/\/[^\s]+)/g).map((part, index) => {
-                  if (part.match(/^@?https?:\/\//)) {
-                    return (
-                      <a 
-                        key={index}
-                        href={part.startsWith('@') ? part.substring(1) : part}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ 
-                          color: '#FFB84D', 
-                          textDecoration: 'none',
-                          '&:hover': {
-                            textDecoration: 'underline'
-                          }
-                        }}
-                      >
-                        {part}
-                      </a>
-                    );
-                  }
-                  return part;
-                })}
-              </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Button 
-                  variant="outlined"
-                  onClick={() => setSelectedEvent(null)}
-                  sx={{
-                    color: '#FFB84D',
-                    borderColor: '#FFB84D',
-                    textTransform: 'none',
-                    fontSize: '16px',
-                    px: 2,
-                    py: 1.5,
-                    borderRadius: '12px',
-                    '&:hover': {
-                      borderColor: '#FFA833',
-                      backgroundColor: 'rgba(255, 184, 77, 0.04)',
-                      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
-                      transform: 'translateY(-2px)',
-                    },
-                    '&:active': {
-                      transform: 'translateY(1px) scale(0.98)',
-                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
-                    }
-                  }}
-                >
-                  Close
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Box>
+        <EventDetailModal
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+        />
       )}
     </Box>
   );
