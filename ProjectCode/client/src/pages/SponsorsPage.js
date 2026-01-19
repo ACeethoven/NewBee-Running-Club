@@ -8,7 +8,7 @@ import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 import { useAdmin } from '../context';
 import { useAutoFillOnTab } from '../hooks';
-import { getAllDonors, createDonor, updateDonor, deleteDonor } from '../api/donors';
+import { getAllDonors, getPublicDonors, createDonor, updateDonor, deleteDonor } from '../api/donors';
 
 export default function SponsorsPage() {
   const { adminModeEnabled } = useAdmin();
@@ -52,9 +52,17 @@ export default function SponsorsPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await getAllDonors();
-      setIndividualDonors(data.individual_donors || []);
-      setEnterpriseDonors(data.enterprise_donors || []);
+      if (adminModeEnabled) {
+        // Admin users get full donor data
+        const data = await getAllDonors();
+        setIndividualDonors(data.individual_donors || []);
+        setEnterpriseDonors(data.enterprise_donors || []);
+      } else {
+        // Public users get privacy-filtered donor data
+        const donors = await getPublicDonors();
+        setIndividualDonors(donors.filter(d => d.donor_type === 'individual'));
+        setEnterpriseDonors(donors.filter(d => d.donor_type === 'enterprise'));
+      }
     } catch (err) {
       console.error('Error fetching donors:', err);
       setError('Failed to load donors. Please try again. / 加载赞助者失败，请重试。');
@@ -65,7 +73,8 @@ export default function SponsorsPage() {
 
   useEffect(() => {
     fetchDonors();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminModeEnabled]);
 
   const handleEditDonor = (donor) => {
     setEditingDonor(donor);
@@ -231,16 +240,27 @@ export default function SponsorsPage() {
                   )}
                 </Box>
 
-                <Typography variant="h5" sx={{ color: '#FFA500', fontWeight: 600, mb: 1 }}>
-                  {formatAmount(donor.amount)}
-                </Typography>
+                {/* Show amount only for enterprise donors or in admin mode */}
+                {(donor.amount || adminModeEnabled) && (
+                  <Typography variant="h5" sx={{ color: '#FFA500', fontWeight: 600, mb: 1 }}>
+                    {donor.amount ? formatAmount(donor.amount) : (adminModeEnabled ? formatAmount(0) : null)}
+                  </Typography>
+                )}
 
+                {/* Always show date chip when available */}
                 {donor.donation_date && (
                   <Chip
                     label={formatDate(donor.donation_date)}
                     size="small"
                     sx={{ mb: 1, backgroundColor: 'rgba(255, 165, 0, 0.1)' }}
                   />
+                )}
+
+                {/* Show "Thank you!" message for individual donors when amount is hidden */}
+                {!donor.amount && !adminModeEnabled && donor.donor_type === 'individual' && (
+                  <Typography variant="body2" sx={{ color: '#FFA500', fontWeight: 500, mb: 1 }}>
+                    Thank you for your support! / 感谢您的支持！
+                  </Typography>
                 )}
 
                 {donor.message && (

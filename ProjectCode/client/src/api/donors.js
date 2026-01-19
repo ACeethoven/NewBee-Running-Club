@@ -65,3 +65,24 @@ export async function deleteDonor(donorId) {
 export async function getDonationSummary() {
   return api.get('/api/donors/stats/summary');
 }
+
+/**
+ * Get public donors with privacy rules applied
+ * - Individual donors: amount hidden, date shown
+ * - Enterprise donors: amount shown
+ * - Respects linked member's show_in_donors setting
+ * @returns {Promise<Array>} List of public donor data
+ */
+export async function getPublicDonors() {
+  return api.get('/api/donors/public');
+}
+
+/**
+ * Link a donor to a member account (admin only)
+ * @param {string} donorId - Donor ID
+ * @param {number} memberId - Member ID to link
+ * @returns {Promise<Object>} Link result
+ */
+export async function linkDonorToMember(donorId, memberId) {
+  return api.put(`/api/donors/${donorId}/link-member`, { member_id: memberId });
+}

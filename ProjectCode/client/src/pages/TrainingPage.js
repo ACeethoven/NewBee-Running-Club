@@ -5,10 +5,16 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   FormHelperText,
   Grid,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -19,18 +25,24 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography
 } from '@mui/material';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
+import { useAuth } from '../context/AuthContext';
+import { getApprovedTips, submitTip, toggleUpvote } from '../api/trainingTips';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
-import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import GroupsIcon from '@mui/icons-material/Groups';
 import RouteIcon from '@mui/icons-material/Route';
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 
 const steps = ['Introduction', 'Race Info', 'Fitness', 'Duration'];
 
@@ -50,46 +62,6 @@ const trainingDurations = [
   { value: 24, label: '24 Weeks' },
   { value: 36, label: '36 Weeks' },
   { value: 48, label: '48 Weeks' }
-];
-
-// Community tips data (will be fetched from API in future)
-const communityTips = [
-  {
-    id: 1,
-    category: 'recovery',
-    title: 'Post-Run Stretching Routine',
-    titleCn: '跑后拉伸套路',
-    content: 'Spend at least 10 minutes stretching after every run. Focus on hip flexors, hamstrings, quads, and calves.',
-    author: 'NewBee Team',
-    upvotes: 42
-  },
-  {
-    id: 2,
-    category: 'nutrition',
-    title: 'Race Day Breakfast',
-    titleCn: '比赛日早餐',
-    content: 'Eat a familiar breakfast 2-3 hours before your race. Include easily digestible carbs and avoid high fiber foods.',
-    author: 'Coach Mike',
-    upvotes: 38
-  },
-  {
-    id: 3,
-    category: 'technique',
-    title: 'Cadence Training',
-    titleCn: '步频训练',
-    content: 'Aim for 170-180 steps per minute. Use a metronome app during easy runs to gradually increase your cadence.',
-    author: 'Jenny L.',
-    upvotes: 35
-  },
-  {
-    id: 4,
-    category: 'mental',
-    title: 'Breaking Down Long Runs',
-    titleCn: '分解长跑',
-    content: 'Mentally divide long runs into smaller segments. Focus only on reaching the next mile marker, not the full distance.',
-    author: 'David W.',
-    upvotes: 31
-  }
 ];
 
 // Popular routes data (will be fetched from API in future)
@@ -148,7 +120,48 @@ const getCategoryColor = (category) => {
   return colors[category] || '#FFA500';
 };
 
+// Helper to get or create anonymous ID for upvoting
+const getAnonymousId = () => {
+  let id = localStorage.getItem('newbee_anonymous_id');
+  if (!id) {
+    id = 'anon_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    localStorage.setItem('newbee_anonymous_id', id);
+  }
+  return id;
+};
+
+// Helper to extract video embed URL
+const getVideoEmbedUrl = (url, platform) => {
+  if (!url) return null;
+
+  if (platform === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')) {
+    // Extract YouTube video ID
+    let videoId = null;
+    if (url.includes('youtu.be/')) {
+      videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    } else if (url.includes('watch?v=')) {
+      videoId = url.split('watch?v=')[1]?.split('&')[0];
+    } else if (url.includes('embed/')) {
+      videoId = url.split('embed/')[1]?.split('?')[0];
+    }
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+  }
+
+  if (platform === 'bilibili' || url.includes('bilibili.com')) {
+    // Extract Bilibili video ID
+    let bvid = null;
+    const match = url.match(/BV[\w]+/);
+    if (match) {
+      bvid = match[0];
+    }
+    return bvid ? `https://player.bilibili.com/player.html?bvid=${bvid}&high_quality=1` : null;
+  }
+
+  return null;
+};
+
 export default function TrainingPage() {
+  const { currentUser } = useAuth();
   const [tabValue, setTabValue] = useState(0);
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -162,8 +175,149 @@ export default function TrainingPage() {
   });
   const [planGenerated, setPlanGenerated] = useState(false);
 
+  // Tips state
+  const [tips, setTips] = useState([]);
+  const [tipsLoading, setTipsLoading] = useState(false);
+  const [tipsError, setTipsError] = useState('');
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState('');
+  const [tipFormData, setTipFormData] = useState({
+    category: '',
+    title: '',
+    title_cn: '',
+    content: '',
+    content_cn: '',
+    video_url: '',
+    video_platform: ''
+  });
+  const [expandedVideo, setExpandedVideo] = useState(null);
+
+  // Fetch tips from API
+  useEffect(() => {
+    const fetchTips = async () => {
+      setTipsLoading(true);
+      try {
+        const anonymousId = getAnonymousId();
+        const data = await getApprovedTips(null, anonymousId, currentUser?.uid);
+        setTips(data);
+        setTipsError('');
+      } catch (err) {
+        console.error('Error fetching tips:', err);
+        // Fall back to default tips if API fails
+        setTips([
+          {
+            id: 1,
+            category: 'recovery',
+            title: 'Post-Run Stretching Routine',
+            title_cn: '跑后拉伸套路',
+            content: 'Spend at least 10 minutes stretching after every run. Focus on hip flexors, hamstrings, quads, and calves.',
+            author_name: 'NewBee Team',
+            upvotes: 42,
+            user_upvoted: false
+          },
+          {
+            id: 2,
+            category: 'nutrition',
+            title: 'Race Day Breakfast',
+            title_cn: '比赛日早餐',
+            content: 'Eat a familiar breakfast 2-3 hours before your race. Include easily digestible carbs and avoid high fiber foods.',
+            author_name: 'Coach Mike',
+            upvotes: 38,
+            user_upvoted: false
+          },
+          {
+            id: 3,
+            category: 'technique',
+            title: 'Cadence Training',
+            title_cn: '步频训练',
+            content: 'Aim for 170-180 steps per minute. Use a metronome app during easy runs to gradually increase your cadence.',
+            author_name: 'Jenny L.',
+            upvotes: 35,
+            user_upvoted: false
+          },
+          {
+            id: 4,
+            category: 'mental',
+            title: 'Breaking Down Long Runs',
+            title_cn: '分解长跑',
+            content: 'Mentally divide long runs into smaller segments. Focus only on reaching the next mile marker, not the full distance.',
+            author_name: 'David W.',
+            upvotes: 31,
+            user_upvoted: false
+          }
+        ]);
+        setTipsError('Unable to load tips from server. Showing sample tips.');
+      } finally {
+        setTipsLoading(false);
+      }
+    };
+
+    fetchTips();
+  }, [currentUser]);
+
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
+  };
+
+  // Upvote handler
+  const handleUpvote = async (tipId) => {
+    try {
+      const anonymousId = getAnonymousId();
+      const result = await toggleUpvote(tipId, anonymousId, currentUser?.uid);
+      setTips(prev => prev.map(tip =>
+        tip.id === tipId
+          ? { ...tip, upvotes: result.upvotes, user_upvoted: result.user_upvoted }
+          : tip
+      ));
+    } catch (err) {
+      console.error('Error toggling upvote:', err);
+    }
+  };
+
+  // Submit tip handlers
+  const handleSubmitDialogOpen = () => {
+    setTipFormData({
+      category: '',
+      title: '',
+      title_cn: '',
+      content: '',
+      content_cn: '',
+      video_url: '',
+      video_platform: ''
+    });
+    setSubmitDialogOpen(true);
+  };
+
+  const handleSubmitDialogClose = () => {
+    setSubmitDialogOpen(false);
+    setSubmitSuccess('');
+  };
+
+  const handleTipFormChange = (field) => (event) => {
+    setTipFormData(prev => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const handleSubmitTip = async () => {
+    setSubmitting(true);
+    try {
+      await submitTip(tipFormData, currentUser?.uid);
+      setSubmitSuccess('Tip submitted successfully! It will appear after admin approval.');
+      setTipFormData({
+        category: '',
+        title: '',
+        title_cn: '',
+        content: '',
+        content_cn: '',
+        video_url: '',
+        video_platform: ''
+      });
+    } catch (err) {
+      console.error('Error submitting tip:', err);
+      setTipsError('Failed to submit tip. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleInputChange = (field) => (event) => {
@@ -405,8 +559,8 @@ export default function TrainingPage() {
             }}>
               <CardContent>
                 <SmartToyIcon sx={{ fontSize: 40, color: '#FFA500', mb: 1 }} />
-                <Typography variant="subtitle1" fontWeight={600}>AI Coach</Typography>
-                <Typography variant="body2" color="text.secondary">智能教练</Typography>
+                <Typography variant="subtitle1" fontWeight={600}>AI Training Partner</Typography>
+                <Typography variant="body2" color="text.secondary">智能训练伙伴</Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -480,14 +634,22 @@ export default function TrainingPage() {
               },
             }}
           >
-            <Tab icon={<FitnessCenterIcon />} label="Training Plan" iconPosition="start" />
+            <Tab icon={<FitnessCenterIcon />} label="AI Training Plan" iconPosition="start" />
             <Tab icon={<TipsAndUpdatesIcon />} label="Community Tips" iconPosition="start" />
             <Tab icon={<RouteIcon />} label="Routes" iconPosition="start" />
           </Tabs>
         </Paper>
 
-        {/* Tab 0: Training Plan Generator */}
+        {/* Tab 0: AI Training Plan Generator */}
         <TabPanel value={tabValue} index={0}>
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              This training plan is generated by AI. AI might make mistakes. Please consult a professional trainer for personalized advice.
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              此训练计划由AI生成。AI可能会出错。请咨询专业教练以获得个性化建议。
+            </Typography>
+          </Alert>
           <Box sx={{
             backgroundColor: 'white',
             borderRadius: { xs: '8px', sm: '12px' },
@@ -642,61 +804,168 @@ export default function TrainingPage() {
 
         {/* Tab 1: Community Tips */}
         <TabPanel value={tabValue} index={1}>
-          <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-            Community Training Tips / 社区训练技巧
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              Community Training Tips / 社区训练技巧
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleSubmitDialogOpen}
+              sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+            >
+              Submit a Tip
+            </Button>
+          </Box>
+
+          {tipsError && (
+            <Alert severity="warning" sx={{ mb: 3 }} onClose={() => setTipsError('')}>
+              {tipsError}
+            </Alert>
+          )}
+
+          {submitSuccess && (
+            <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSubmitSuccess('')}>
+              {submitSuccess}
+            </Alert>
+          )}
 
           <Alert severity="info" sx={{ mb: 3 }}>
-            Tips from NewBee members! In the future, you'll be able to submit your own tips and upvote helpful advice.
+            Tips from NewBee members! Submit your own tips and upvote helpful advice. Tips with video content are also welcome!
             <br />
-            来自新蜂成员的技巧！未来您将可以提交自己的技巧并为有用的建议点赞。
+            来自新蜂成员的技巧！提交您自己的技巧并为有用的建议点赞。欢迎附带视频内容的技巧！
           </Alert>
 
-          <Grid container spacing={3}>
-            {communityTips.map((tip) => (
-              <Grid item xs={12} md={6} key={tip.id}>
-                <Card sx={{
-                  height: '100%',
-                  transition: 'transform 0.2s',
-                  '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 }
-                }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Box>
-                        <Chip
-                          label={tip.category}
-                          size="small"
-                          sx={{
-                            backgroundColor: getCategoryColor(tip.category),
-                            color: 'white',
-                            mb: 1
-                          }}
-                        />
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          {tip.title}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {tip.titleCn}
-                        </Typography>
+          {tipsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress sx={{ color: '#FFA500' }} />
+            </Box>
+          ) : (
+            <Grid container spacing={3}>
+              {tips.map((tip) => (
+                <Grid item xs={12} md={6} key={tip.id}>
+                  <Card sx={{
+                    height: '100%',
+                    transition: 'transform 0.2s',
+                    '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 }
+                  }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                            <Chip
+                              label={tip.category}
+                              size="small"
+                              sx={{
+                                backgroundColor: getCategoryColor(tip.category),
+                                color: 'white'
+                              }}
+                            />
+                            {tip.video_url && (
+                              <Chip
+                                icon={<PlayCircleOutlineIcon sx={{ fontSize: 14 }} />}
+                                label="Video"
+                                size="small"
+                                variant="outlined"
+                                sx={{ borderColor: '#FFA500', color: '#FFA500' }}
+                              />
+                            )}
+                          </Box>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                            {tip.title}
+                          </Typography>
+                          {tip.title_cn && (
+                            <Typography variant="body2" color="text.secondary">
+                              {tip.title_cn}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Tooltip title={tip.user_upvoted ? "Remove upvote" : "Upvote this tip"}>
+                          <IconButton
+                            onClick={() => handleUpvote(tip.id)}
+                            sx={{
+                              color: tip.user_upvoted ? '#FFA500' : 'inherit',
+                              '&:hover': { backgroundColor: 'rgba(255, 165, 0, 0.1)' }
+                            }}
+                          >
+                            {tip.user_upvoted ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
+                          </IconButton>
+                        </Tooltip>
                       </Box>
-                      <Chip
-                        icon={<TipsAndUpdatesIcon sx={{ fontSize: 16 }} />}
-                        label={`${tip.upvotes}`}
-                        variant="outlined"
-                        size="small"
-                      />
-                    </Box>
-                    <Typography variant="body1" sx={{ mb: 2 }}>
-                      {tip.content}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Shared by {tip.author}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+
+                      <Typography variant="body1" sx={{ mb: 2 }}>
+                        {tip.content}
+                      </Typography>
+                      {tip.content_cn && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          {tip.content_cn}
+                        </Typography>
+                      )}
+
+                      {/* Video Embed */}
+                      {tip.video_url && (
+                        <Box sx={{ mb: 2 }}>
+                          {expandedVideo === tip.id ? (
+                            <Box sx={{ position: 'relative', paddingTop: '56.25%', width: '100%' }}>
+                              <iframe
+                                src={getVideoEmbedUrl(tip.video_url, tip.video_platform)}
+                                title={tip.title}
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  width: '100%',
+                                  height: '100%',
+                                  border: 'none',
+                                  borderRadius: '8px'
+                                }}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </Box>
+                          ) : (
+                            <Button
+                              variant="outlined"
+                              startIcon={<PlayCircleOutlineIcon />}
+                              onClick={() => setExpandedVideo(tip.id)}
+                              sx={{
+                                color: '#FFA500',
+                                borderColor: '#FFA500',
+                                '&:hover': { borderColor: '#FF8C00', backgroundColor: 'rgba(255, 165, 0, 0.1)' }
+                              }}
+                            >
+                              Watch Video
+                            </Button>
+                          )}
+                        </Box>
+                      )}
+
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Shared by {tip.author_name || 'Anonymous'}
+                        </Typography>
+                        <Chip
+                          icon={<ThumbUpIcon sx={{ fontSize: 14 }} />}
+                          label={`${tip.upvotes} upvotes`}
+                          variant="outlined"
+                          size="small"
+                        />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+              {tips.length === 0 && !tipsLoading && (
+                <Grid item xs={12}>
+                  <Alert severity="info">
+                    No tips available yet. Be the first to submit a tip!
+                    <br />
+                    暂无技巧。成为第一个提交技巧的人吧！
+                  </Alert>
+                </Grid>
+              )}
+            </Grid>
+          )}
         </TabPanel>
 
         {/* Tab 2: Routes */}
@@ -758,6 +1027,124 @@ export default function TrainingPage() {
           </Grid>
         </TabPanel>
       </Container>
+
+      {/* Submit Tip Dialog */}
+      <Dialog open={submitDialogOpen} onClose={handleSubmitDialogClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Submit a Training Tip / 提交训练技巧
+        </DialogTitle>
+        <DialogContent>
+          {submitSuccess ? (
+            <Alert severity="success" sx={{ mt: 2 }}>
+              {submitSuccess}
+              <br />
+              您的技巧已提交成功！管理员审核后将会显示。
+            </Alert>
+          ) : (
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <FormControl fullWidth required>
+                  <InputLabel>Category / 类别</InputLabel>
+                  <Select
+                    value={tipFormData.category}
+                    onChange={handleTipFormChange('category')}
+                    label="Category / 类别"
+                  >
+                    <MenuItem value="recovery">Recovery / 恢复</MenuItem>
+                    <MenuItem value="nutrition">Nutrition / 营养</MenuItem>
+                    <MenuItem value="technique">Technique / 技巧</MenuItem>
+                    <MenuItem value="mental">Mental / 心理</MenuItem>
+                    <MenuItem value="gear">Gear / 装备</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Title (English)"
+                  value={tipFormData.title}
+                  onChange={handleTipFormChange('title')}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Title (Chinese)"
+                  value={tipFormData.title_cn}
+                  onChange={handleTipFormChange('title_cn')}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Content (English)"
+                  value={tipFormData.content}
+                  onChange={handleTipFormChange('content')}
+                  multiline
+                  rows={3}
+                  required
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Content (Chinese)"
+                  value={tipFormData.content_cn}
+                  onChange={handleTipFormChange('content_cn')}
+                  multiline
+                  rows={3}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Video URL (YouTube or Bilibili)"
+                  value={tipFormData.video_url}
+                  onChange={handleTipFormChange('video_url')}
+                  helperText="Optional: Add a video to demonstrate your tip"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Video Platform</InputLabel>
+                  <Select
+                    value={tipFormData.video_platform}
+                    onChange={handleTipFormChange('video_platform')}
+                    label="Video Platform"
+                  >
+                    <MenuItem value="">None</MenuItem>
+                    <MenuItem value="youtube">YouTube</MenuItem>
+                    <MenuItem value="bilibili">Bilibili</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  Your tip will be reviewed by an admin before being published.
+                  <br />
+                  您的技巧将在管理员审核后发布。
+                </Alert>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleSubmitDialogClose}>
+            {submitSuccess ? 'Close' : 'Cancel'}
+          </Button>
+          {!submitSuccess && (
+            <Button
+              variant="contained"
+              onClick={handleSubmitTip}
+              disabled={submitting || !tipFormData.category || !tipFormData.title || !tipFormData.content}
+              sx={{ backgroundColor: '#FFA500', '&:hover': { backgroundColor: '#FF8C00' } }}
+            >
+              {submitting ? <CircularProgress size={24} /> : 'Submit'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
