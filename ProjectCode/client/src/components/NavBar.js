@@ -123,6 +123,32 @@ export default function NavBar() {
                 </Tooltip>
               )}
 
+              {/* Admin Panel Button - only visible to admins */}
+              {isAdmin && (
+                <Button
+                  component={NavLink}
+                  to="/admin"
+                  sx={{
+                    color: '#FFD700',
+                    textTransform: 'none',
+                    fontSize: '0.9rem',
+                    minWidth: 'auto',
+                    px: 3,
+                    py: 1,
+                    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(255, 215, 0, 0.5)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 215, 0, 0.25)',
+                      border: '1px solid rgba(255, 215, 0, 0.7)',
+                    }
+                  }}
+                >
+                  Admin
+                </Button>
+              )}
+
               <Button
                 component={NavLink}
                 to="/profile"
