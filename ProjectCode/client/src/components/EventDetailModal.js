@@ -244,7 +244,7 @@ export default function EventDetailModal({ event, onClose }) {
                 }
               }}
             >
-              Close
+              Close 关闭
             </Button>
           </Box>
         </CardContent>

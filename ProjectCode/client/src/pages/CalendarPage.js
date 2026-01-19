@@ -502,7 +502,7 @@ export default function CalendarPage() {
             <Grid item xs={12} md={4} key={event.id}>
               <Card
                 sx={{
-                  height: '100%',
+                  height: { xs: 'auto', md: '420px' },
                   display: 'flex',
                   flexDirection: 'column',
                   cursor: 'pointer',
@@ -560,17 +560,33 @@ export default function CalendarPage() {
                   onError={handleImageError}
                   sx={{
                     objectFit: 'cover',
-                    backgroundColor: '#f5f5f5'
+                    backgroundColor: '#f5f5f5',
+                    flexShrink: 0
                   }}
                 />
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography gutterBottom variant="h6" component="div">
+                <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Typography gutterBottom variant="h6" component="div" sx={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
                     {event.title}
                   </Typography>
-                  <Typography gutterBottom variant="subtitle1" color="text.secondary">
+                  <Typography gutterBottom variant="subtitle1" color="text.secondary" sx={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
                     {event.chineseTitle}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{
+                    mb: 2,
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    flexGrow: 1
+                  }}>
                     {event.description}
                   </Typography>
                   <Button
@@ -584,6 +600,7 @@ export default function CalendarPage() {
                       py: 1.5,
                       borderRadius: '12px',
                       border: '2px solid #FFB84D',
+                      alignSelf: 'flex-start',
                       '&:hover': {
                         backgroundColor: '#FFA833',
                         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
@@ -595,7 +612,7 @@ export default function CalendarPage() {
                       }
                     }}
                   >
-                    Learn More
+                    Learn More & Sign Up 了解更多并报名
                   </Button>
                 </CardContent>
               </Card>
@@ -865,7 +882,7 @@ export default function CalendarPage() {
                       handleEventClick(event);
                     }}
                   >
-                    Learn More
+                    Learn More & Sign Up 了解更多并报名
                   </Button>
                 </Box>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -969,7 +986,7 @@ export default function CalendarPage() {
                     }
                   }}
                 >
-                  Sign Up
+                  Sign Up 报名
                 </Button>
                 <Button
                   variant="outlined"
@@ -994,7 +1011,7 @@ export default function CalendarPage() {
                     }
                   }}
                 >
-                  Close
+                  Close 关闭
                 </Button>
               </Box>
             </CardContent>

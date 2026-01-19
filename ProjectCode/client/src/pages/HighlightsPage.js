@@ -236,7 +236,7 @@ export default function HighlightsPage() {
                       }
                     }}
                   >
-                    View Details
+                    View Details 查看详情
                   </Button>
                 </CardContent>
               </Card>
@@ -465,7 +465,7 @@ export default function HighlightsPage() {
                       handleEventClick(event);
                     }}
                   >
-                    View Details
+                    View Details 查看详情
                   </Button>
                 </Box>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
