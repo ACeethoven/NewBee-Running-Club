@@ -41,7 +41,7 @@ import {
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context';
-import { useAutoFillOnTab } from '../hooks';
+import { useAutoFillOnTab, useTranslationAutoFill } from '../hooks';
 import { logout } from '../firebase/auth';
 import { storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -90,6 +90,26 @@ const ProfilePage = () => {
     setValue: (field, value) => setEditFormData(prev => ({ ...prev, [field]: value })),
     defaultValues: profileDefaultValues
   });
+
+  // Translation auto-fill for bilingual name fields
+  const {
+    handleKeyDown: handleTranslationKeyDown,
+    handleBlur: handleTranslationBlur,
+    translations,
+    isTranslating
+  } = useTranslationAutoFill({
+    setValue: (field, value) => setEditFormData(prev => ({ ...prev, [field]: value })),
+    getValue: (field) => editFormData[field],
+    fieldPairs: [
+      ['display_name', 'display_name_cn']
+    ]
+  });
+
+  // Combined key down handler for both auto-fill and translation
+  const handleFieldKeyDown = (event) => {
+    handleAutoFill(event);
+    handleTranslationKeyDown(event);
+  };
 
   // Fetch member data
   const fetchMemberData = useCallback(async () => {
@@ -640,7 +660,8 @@ const ProfilePage = () => {
                 label="Name (English) / 英文名"
                 value={editFormData.display_name || ''}
                 onChange={handleEditFormChange('display_name')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
+                onBlur={handleTranslationBlur}
                 placeholder={profileDefaultValues.display_name}
               />
             </Grid>
@@ -651,8 +672,15 @@ const ProfilePage = () => {
                 label="Name (Chinese) / 中文名"
                 value={editFormData.display_name_cn || ''}
                 onChange={handleEditFormChange('display_name_cn')}
-                onKeyDown={handleAutoFill}
-                placeholder={profileDefaultValues.display_name_cn}
+                onKeyDown={handleFieldKeyDown}
+                onBlur={handleTranslationBlur}
+                placeholder={translations.display_name_cn || profileDefaultValues.display_name_cn}
+                InputProps={{
+                  endAdornment: isTranslating && !editFormData.display_name_cn && (
+                    <CircularProgress size={16} sx={{ mr: 1 }} />
+                  )
+                }}
+                helperText={translations.display_name_cn && !editFormData.display_name_cn ? 'Press Tab to auto-fill translation' : ''}
               />
             </Grid>
             <Grid item xs={12}>
@@ -671,7 +699,7 @@ const ProfilePage = () => {
                 label="Phone / 电话"
                 value={editFormData.phone || ''}
                 onChange={handleEditFormChange('phone')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.phone}
               />
             </Grid>
@@ -682,7 +710,7 @@ const ProfilePage = () => {
                 label="NYRR Runner ID"
                 value={editFormData.nyrr_member_id || ''}
                 onChange={handleEditFormChange('nyrr_member_id')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.nyrr_member_id}
                 helperText="Your NYRR account ID for race results"
               />
@@ -701,7 +729,7 @@ const ProfilePage = () => {
                 label="Contact Name / 联系人姓名"
                 value={editFormData.emergency_contact_name || ''}
                 onChange={handleEditFormChange('emergency_contact_name')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.emergency_contact_name}
               />
             </Grid>
@@ -712,7 +740,7 @@ const ProfilePage = () => {
                 label="Contact Phone / 联系人电话"
                 value={editFormData.emergency_contact_phone || ''}
                 onChange={handleEditFormChange('emergency_contact_phone')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.emergency_contact_phone}
               />
             </Grid>
@@ -730,7 +758,7 @@ const ProfilePage = () => {
                 label="Location / 跑步地点"
                 value={editFormData.location || ''}
                 onChange={handleEditFormChange('location')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.location}
                 helperText="Where do you usually run? / 你通常在哪里跑步？"
               />
@@ -742,7 +770,7 @@ const ProfilePage = () => {
                 label="Weekly Frequency / 每周跑步频次"
                 value={editFormData.weekly_frequency || ''}
                 onChange={handleEditFormChange('weekly_frequency')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.weekly_frequency}
                 helperText="e.g., 3-4 times per week / 例如：每周3-4次"
               />
@@ -754,7 +782,7 @@ const ProfilePage = () => {
                 label="Monthly Mileage / 月跑量"
                 value={editFormData.monthly_mileage || ''}
                 onChange={handleEditFormChange('monthly_mileage')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.monthly_mileage}
                 helperText="e.g., 100 miles / 例如：100英里"
               />
@@ -768,7 +796,7 @@ const ProfilePage = () => {
                 label="Running Experience / 跑步经历"
                 value={editFormData.running_experience || ''}
                 onChange={handleEditFormChange('running_experience')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.running_experience}
               />
             </Grid>
@@ -781,7 +809,7 @@ const ProfilePage = () => {
                 label="Goals / 跑步目标"
                 value={editFormData.goals || ''}
                 onChange={handleEditFormChange('goals')}
-                onKeyDown={handleAutoFill}
+                onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.goals}
               />
             </Grid>
