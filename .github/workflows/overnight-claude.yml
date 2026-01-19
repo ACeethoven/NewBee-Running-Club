@@ -32,6 +32,12 @@ jobs:
             --model claude-opus-4-5-20251101
             --allowedTools "Edit,Write,Bash,Read,Glob,Grep,Task"
           prompt: |
+            IMPORTANT BRANCH RULE: You are working on the DEV branch ONLY.
+            - All changes must be made to the dev branch
+            - All PRs must target the dev branch
+            - NEVER push directly to prod or main branches
+            - The prod branch is for deployment only (auto-deploys via CI/CD)
+
             IMPORTANT: This project has a React frontend (client/) and Python/FastAPI backend (server/).
             There is NO package.json in the server directory - it uses requirements.txt for Python dependencies.
             Read CLAUDE.md for full project context before starting any work.
