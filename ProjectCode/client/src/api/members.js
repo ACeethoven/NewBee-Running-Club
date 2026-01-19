@@ -77,6 +77,15 @@ export async function getCommitteeMembers() {
 }
 
 /**
+ * Get all members (admin only)
+ * @param {string} firebaseUid - Firebase UID of the admin user
+ * @returns {Promise<Array>} List of all members
+ */
+export async function getAllMembers(firebaseUid) {
+  return api.get('/api/members', {}, { 'X-Firebase-UID': firebaseUid });
+}
+
+/**
  * Submit join application
  * @param {Object} applicationData - Application form data
  * @param {string} applicationData.name - Full name
