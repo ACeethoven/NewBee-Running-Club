@@ -241,7 +241,8 @@ export default function TrainingPage() {
             fontWeight: 600,
             color: '#FFA500',
             mb: { xs: 2, sm: 3 },
-            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
           }}
         >
           Training with Us

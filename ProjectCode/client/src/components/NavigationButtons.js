@@ -41,7 +41,7 @@ export const navigationButtons = [
   },
   {
     english: 'Our Sponsors/Donors',
-    chinese: '我们的捐助者/赞助商',
+    chinese: '我们的赞助者/赞助商',
     path: '/sponsors'
   }
 ];

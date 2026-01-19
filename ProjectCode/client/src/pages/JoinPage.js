@@ -698,10 +698,12 @@ export default function JoinPage() {
           sx={{
             fontWeight: 600,
             color: '#FFA500',
-            mb: 3
+            mb: 3,
+            textAlign: 'center'
           }}
         >
           Join NewBee Running Club
+          <br />
           加入新蜂跑团
         </Typography>
 

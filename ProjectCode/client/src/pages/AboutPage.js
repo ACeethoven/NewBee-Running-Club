@@ -326,21 +326,23 @@ export default function AboutPage() {
 
       {/* Latest News Text */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 2, sm: 3 } }}>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 600,
-              color: '#FFA500',
-              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-            }}
-          >
-            Latest News
-            <br />
-            最新动态
-          </Typography>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: 2,
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
+          }}
+        >
+          Latest News
+          <br />
+          最新动态
+        </Typography>
 
-          {adminModeEnabled && !isEditing && (
+        {adminModeEnabled && !isEditing && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: { xs: 2, sm: 3 } }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -356,8 +358,10 @@ export default function AboutPage() {
             >
               Add Meeting Minutes
             </Button>
-          )}
-        </Box>
+          </Box>
+        )}
+
+        {!adminModeEnabled && <Box sx={{ mb: { xs: 2, sm: 3 } }} />}
       </Container>
 
       {/* Latest News Content */}
@@ -610,21 +614,20 @@ export default function AboutPage() {
 
       {/* Board of Committee Text */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
-        <Box>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 600,
-              color: '#FFA500',
-              mb: { xs: 2, sm: 3 },
-              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-            }}
-          >
-            Board of Committee
-            <br />
-            新蜂委员会
-          </Typography>
-        </Box>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
+          }}
+        >
+          Board of Committee
+          <br />
+          新蜂委员会
+        </Typography>
       </Container>
 
       {/* Committee Members Section */}
@@ -765,21 +768,20 @@ export default function AboutPage() {
 
       {/* History Text */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
-        <Box>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 600,
-              color: '#FFA500',
-              mb: { xs: 2, sm: 3 },
-              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-            }}
-          >
-            NewBee's History
-            <br />
-            新蜂历史
-          </Typography>
-        </Box>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
+          }}
+        >
+          NewBee's History
+          <br />
+          新蜂历史
+        </Typography>
       </Container>
 
       {/* History Content */}

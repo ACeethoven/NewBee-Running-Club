@@ -1,14 +1,17 @@
-name: Check PR Source
+name: Gatekeeper
+
 on:
   pull_request:
-    branches: [ prod ]
+    branches:
+      - prod
 
 jobs:
-  check-branch:
+  enforce-dev-source:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify source branch is dev
+      - name: Check source branch
         if: github.head_ref != 'dev'
         run: |
-          echo "Error: Only 'dev' can be merged into 'prod'."
+          echo "ERROR: You can only merge into 'prod' from the 'dev' branch."
+          echo "Current source branch: ${{ github.head_ref }}"
           exit 1
