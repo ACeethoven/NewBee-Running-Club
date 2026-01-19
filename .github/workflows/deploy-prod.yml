@@ -28,7 +28,13 @@ jobs:
 
             cd /var/www/newbeerunning/NewBee-Running-Club
 
+            # Discard any local changes and reset to clean state
+            echo "Resetting local changes..."
+            git reset --hard HEAD
+            git clean -fd
+
             # Pull latest code
+            echo "Pulling latest code..."
             git fetch origin prod
             git checkout prod
             git pull origin prod
