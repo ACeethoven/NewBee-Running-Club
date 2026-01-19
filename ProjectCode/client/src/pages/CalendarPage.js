@@ -3,19 +3,37 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import InfoIcon from '@mui/icons-material/Info';
-import { Alert, Box, Button, Card, CardContent, CardMedia, Container, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, TextField, Tooltip, Typography } from '@mui/material';
-import Papa from 'papaparse';
-import { useEffect, useState } from 'react';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import { Alert, Box, Button, Card, CardContent, CardMedia, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Snackbar, TextField, Tooltip, Typography } from '@mui/material';
+import { useEffect, useState, useRef } from 'react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
-import { useAdmin } from '../context';
+import { useAdmin, useAuth } from '../context';
+import { useAutoFillOnTab } from '../hooks';
+import { storage } from '../firebase/config';
+import { getEventsByStatus, createEvent, updateEvent, deleteEvent } from '../api';
+
+const initialFormData = {
+  name: '',
+  chinese_name: '',
+  date: '',
+  time: '',
+  location: '',
+  chinese_location: '',
+  description: '',
+  chinese_description: '',
+  image: '',
+  signup_link: '',
+  status: 'Upcoming'
+};
 
 export default function CalendarPage() {
   const { adminModeEnabled } = useAdmin();
+  const { currentUser } = useAuth();
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [featuredEvents, setFeaturedEvents] = useState([]);
-  const [adminInfoOpen, setAdminInfoOpen] = useState(false);
   const [filters, setFilters] = useState({
     showAvailable: true,
     date: '',
@@ -24,75 +42,99 @@ export default function CalendarPage() {
     status: ''
   });
 
+  // Admin event management state
+  const [eventFormOpen, setEventFormOpen] = useState(false);
+  const [formData, setFormData] = useState(initialFormData);
+  const [editingEventId, setEditingEventId] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  // Image upload state
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Default values for Tab auto-fill
+  const eventDefaultValues = {
+    name: 'New Event',
+    chinese_name: '新活动',
+    time: '8:00 AM',
+    location: 'Central Park',
+    chinese_location: '中央公园',
+    description: 'Event description goes here.',
+    chinese_description: '活动描述在此。',
+    signup_link: 'https://newbeerunningclub.org/signup'
+  };
+
+  const handleAutoFill = useAutoFillOnTab({
+    setValue: (field, value) => setFormData(prev => ({ ...prev, [field]: value })),
+    defaultValues: eventDefaultValues
+  });
+
   const handleImageError = (e) => {
     console.error('Image failed to load:', e.target.src);
     e.target.src = '/images/placeholder-event.jpg';
   };
 
   useEffect(() => {
-    // Fetch and parse the CSV file
-    fetch('/data/events.csv')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to load events data');
-        }
-        return response.text();
-      })
-      .then(csvData => {
-        Papa.parse(csvData, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header) => header.trim(),
-          transform: (value) => value.trim(),
-          complete: (results) => {
-            console.log('Raw parsed results:', results.data);
-            // Sort events by date and time
-            const sortedEvents = results.data
-              .filter(event => event.id) // Remove empty rows
-              .map(event => {
-                // Parse the event date and time
-                const [year, month, day] = event.date.split('-').map(Number);
-                const [hours, minutes] = event.time.split(':').map(Number);
-                const isPM = event.time.toLowerCase().includes('pm');
-                const eventDate = new Date(year, month - 1, day, isPM ? hours + 12 : hours, minutes);
-                console.log('Event:', event.name, 'Status:', event.status, 'Raw event:', event);
+    // Fetch events from API
+    const fetchEvents = async () => {
+      try {
+        const events = await getEventsByStatus('Upcoming');
+        console.log('Fetched events from API:', events);
 
-                return {
-                  ...event,
-                  image: event.image, // Use the image link from the CSV file
-                  parsedDate: eventDate // Store the parsed date for comparison
-                };
-              })
-              .filter(event => event.status === 'Upcoming') // Filter by Upcoming status
-              .sort((a, b) => a.date.localeCompare(b.date)); // Sort in chronological order
+        // Transform API response to match expected format
+        const transformedEvents = events.map(event => {
+          // Parse the event date and time for filtering
+          const [year, month, day] = event.date.split('-').map(Number);
+          const timeParts = event.time ? event.time.split(':').map(Number) : [0, 0];
+          const isPM = event.time ? event.time.toLowerCase().includes('pm') : false;
+          const eventDate = new Date(year, month - 1, day, isPM ? timeParts[0] + 12 : timeParts[0], timeParts[1] || 0);
 
-            console.log('Upcoming events:', sortedEvents);
+          return {
+            id: event.id,
+            name: event.name,
+            chineseName: event.chinese_name,
+            date: event.date,
+            time: event.time,
+            location: event.location,
+            chineseLocation: event.chinese_location,
+            description: event.description,
+            chineseDescription: event.chinese_description,
+            image: event.image,
+            signupLink: event.signup_link,
+            status: event.status,
+            parsedDate: eventDate
+          };
+        }).sort((a, b) => a.date.localeCompare(b.date)); // Sort in chronological order
 
-            // Set upcoming events
-            setUpcomingEvents(sortedEvents);
+        console.log('Transformed upcoming events:', transformedEvents);
 
-            // Set featured events (first 3 events)
-            setFeaturedEvents(sortedEvents.slice(0, 3).map(event => ({
-              id: event.id,
-              title: event.name,
-              chineseTitle: event.chineseName,
-              image: event.image,
-              description: event.description,
-              date: event.date,
-              time: event.time,
-              location: event.location,
-              chineseLocation: event.chineseLocation,
-              chineseDescription: event.chineseDescription
-            })));
-          },
-          error: (error) => {
-            console.error('Error parsing CSV:', error);
-          }
-        });
-      })
-      .catch(error => {
+        // Set upcoming events
+        setUpcomingEvents(transformedEvents);
+
+        // Set featured events (first 3 events)
+        setFeaturedEvents(transformedEvents.slice(0, 3).map(event => ({
+          id: event.id,
+          title: event.name,
+          chineseTitle: event.chineseName,
+          image: event.image,
+          description: event.description,
+          date: event.date,
+          time: event.time,
+          location: event.location,
+          chineseLocation: event.chineseLocation,
+          chineseDescription: event.chineseDescription
+        })));
+      } catch (error) {
         console.error('Error loading events:', error);
-      });
+      }
+    };
+
+    fetchEvents();
   }, []);
 
   const handleEventClick = (event) => {
@@ -114,16 +156,230 @@ export default function CalendarPage() {
 
   const handleEditEvent = (e, event) => {
     e.stopPropagation();
-    setAdminInfoOpen(true);
+    // Pre-fill form with event data
+    setFormData({
+      name: event.name || event.title || '',
+      chinese_name: event.chineseName || event.chineseTitle || '',
+      date: event.date || '',
+      time: event.time || '',
+      location: event.location || '',
+      chinese_location: event.chineseLocation || '',
+      description: event.description || '',
+      chinese_description: event.chineseDescription || '',
+      image: event.image || '',
+      signup_link: event.signupLink || '',
+      status: event.status || 'Upcoming'
+    });
+    setEditingEventId(event.id);
+    setImageFile(null);
+    setImagePreview(event.image || '');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setEventFormOpen(true);
   };
 
   const handleDeleteEvent = (e, event) => {
     e.stopPropagation();
-    setAdminInfoOpen(true);
+    setEventToDelete(event);
+    setDeleteDialogOpen(true);
   };
 
   const handleAddEvent = () => {
-    setAdminInfoOpen(true);
+    setFormData(initialFormData);
+    setEditingEventId(null);
+    setImageFile(null);
+    setImagePreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setEventFormOpen(true);
+  };
+
+  const handleFormChange = (field) => (e) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: e.target.value
+    }));
+  };
+
+  const handleFormSubmit = async () => {
+    // Validate required fields
+    if (!formData.name || !formData.date) {
+      setSnackbar({ open: true, message: 'Name and date are required / 名称和日期为必填项', severity: 'error' });
+      return;
+    }
+
+    if (!currentUser?.uid) {
+      setSnackbar({ open: true, message: 'You must be logged in to manage events / 您必须登录才能管理活动', severity: 'error' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Upload image if a new file was selected
+      let imageUrl = formData.image;
+      if (imageFile) {
+        imageUrl = await handleImageUpload();
+      }
+
+      const eventData = { ...formData, image: imageUrl };
+
+      if (editingEventId) {
+        // Update existing event
+        await updateEvent(editingEventId, eventData, currentUser.uid);
+        setSnackbar({ open: true, message: 'Event updated successfully / 活动已更新', severity: 'success' });
+      } else {
+        // Create new event
+        await createEvent(eventData, currentUser.uid);
+        setSnackbar({ open: true, message: 'Event created successfully / 活动已创建', severity: 'success' });
+      }
+      setEventFormOpen(false);
+      setFormData(initialFormData);
+      setEditingEventId(null);
+      setImageFile(null);
+      setImagePreview('');
+      // Refresh events
+      const events = await getEventsByStatus('Upcoming');
+      const transformedEvents = events.map(event => ({
+        id: event.id,
+        name: event.name,
+        chineseName: event.chinese_name,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        chineseLocation: event.chinese_location,
+        description: event.description,
+        chineseDescription: event.chinese_description,
+        image: event.image,
+        signupLink: event.signup_link,
+        status: event.status
+      })).sort((a, b) => a.date.localeCompare(b.date));
+      setUpcomingEvents(transformedEvents);
+      setFeaturedEvents(transformedEvents.slice(0, 3).map(event => ({
+        id: event.id,
+        title: event.name,
+        chineseTitle: event.chineseName,
+        image: event.image,
+        description: event.description,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        chineseLocation: event.chineseLocation,
+        chineseDescription: event.chineseDescription
+      })));
+    } catch (error) {
+      console.error('Error saving event:', error);
+      setSnackbar({ open: true, message: `Error: ${error.message || 'Failed to save event'}`, severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!eventToDelete || !currentUser?.uid) {
+      setSnackbar({ open: true, message: 'Unable to delete event / 无法删除活动', severity: 'error' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await deleteEvent(eventToDelete.id, currentUser.uid);
+      setSnackbar({ open: true, message: 'Event deleted successfully / 活动已删除', severity: 'success' });
+      setDeleteDialogOpen(false);
+      setEventToDelete(null);
+      // Refresh events
+      const events = await getEventsByStatus('Upcoming');
+      const transformedEvents = events.map(event => ({
+        id: event.id,
+        name: event.name,
+        chineseName: event.chinese_name,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        chineseLocation: event.chinese_location,
+        description: event.description,
+        chineseDescription: event.chinese_description,
+        image: event.image,
+        signupLink: event.signup_link,
+        status: event.status
+      })).sort((a, b) => a.date.localeCompare(b.date));
+      setUpcomingEvents(transformedEvents);
+      setFeaturedEvents(transformedEvents.slice(0, 3).map(event => ({
+        id: event.id,
+        title: event.name,
+        chineseTitle: event.chineseName,
+        image: event.image,
+        description: event.description,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        chineseLocation: event.chineseLocation,
+        chineseDescription: event.chineseDescription
+      })));
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      setSnackbar({ open: true, message: `Error: ${error.message || 'Failed to delete event'}`, severity: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setSnackbar({ open: true, message: 'Please select an image file / 请选择图片文件', severity: 'error' });
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setSnackbar({ open: true, message: 'Image must be less than 5MB / 图片必须小于5MB', severity: 'error' });
+        return;
+      }
+      setImageFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (!imageFile) return formData.image;
+
+    setUploadingImage(true);
+    try {
+      // Create a unique filename
+      const timestamp = Date.now();
+      const filename = `events/${timestamp}_${imageFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const storageRef = ref(storage, filename);
+
+      // Upload the file
+      await uploadBytes(storageRef, imageFile);
+
+      // Get the download URL
+      const downloadUrl = await getDownloadURL(storageRef);
+      return downloadUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw new Error('Failed to upload image / 图片上传失败');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview('');
+    setFormData(prev => ({ ...prev, image: '' }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Filter events based on selected filters
@@ -174,13 +430,8 @@ export default function CalendarPage() {
           <Alert
             severity="info"
             icon={<InfoIcon />}
-            action={
-              <Button color="inherit" size="small" onClick={() => setAdminInfoOpen(true)}>
-                Learn More
-              </Button>
-            }
           >
-            Admin mode enabled. You can edit and delete events. / 管理员模式已开启，您可以编辑和删除活动。
+            Admin mode enabled. You can add, edit, and delete events. / 管理员模式已开启，您可以添加、编辑和删除活动。
           </Alert>
         </Container>
       )}
@@ -192,10 +443,12 @@ export default function CalendarPage() {
             variant="h4"
             sx={{
               fontWeight: 600,
-              color: '#FFA500'
+              color: '#FFA500',
+              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
             }}
           >
             Featured Events
+            <br />
             精选活动
           </Typography>
 
@@ -332,10 +585,12 @@ export default function CalendarPage() {
             variant="h4"
             sx={{
               fontWeight: 600,
-              color: '#FFA500'
+              color: '#FFA500',
+              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
             }}
           >
             Upcoming Events
+            <br />
             即将举行的活动
           </Typography>
 
@@ -419,7 +674,8 @@ export default function CalendarPage() {
               key={event.id}
               sx={{
                 display: 'flex',
-                height: '200px',
+                flexDirection: { xs: 'column', sm: 'row' },
+                height: { xs: 'auto', sm: '200px' },
                 overflow: 'hidden',
                 cursor: 'pointer',
                 position: 'relative',
@@ -470,11 +726,33 @@ export default function CalendarPage() {
                 </Box>
               )}
 
-              {/* Time Column */}
+              {/* Mobile: Image at top */}
               <Box
                 sx={{
+                  display: { xs: 'block', sm: 'none' },
+                  width: '100%',
+                  height: '150px'
+                }}
+              >
+                <CardMedia
+                  component="img"
+                  sx={{
+                    height: '100%',
+                    width: '100%',
+                    objectFit: 'cover',
+                    backgroundColor: '#f5f5f5'
+                  }}
+                  image={event.image}
+                  alt={event.name}
+                  onError={handleImageError}
+                />
+              </Box>
+
+              {/* Time Column - hidden on mobile, shown on sm+ */}
+              <Box
+                sx={{
+                  display: { xs: 'none', sm: 'flex' },
                   width: '120px',
-                  display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -493,9 +771,10 @@ export default function CalendarPage() {
                 </Typography>
               </Box>
 
-              {/* Image Column */}
+              {/* Image Column - hidden on mobile, shown on sm+ */}
               <Box
                 sx={{
+                  display: { xs: 'none', sm: 'block' },
                   width: '200px',
                   flexShrink: 0
                 }}
@@ -523,12 +802,22 @@ export default function CalendarPage() {
                   flexDirection: 'column'
                 }}
               >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                {/* Mobile: Show date/time at top of content */}
+                <Box sx={{ display: { xs: 'flex', sm: 'none' }, gap: 2, mb: 1, color: '#FFA500' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    {event.time}
+                  </Typography>
+                  <Typography variant="subtitle1" color="text.secondary">
+                    {event.date}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'flex-start' }, mb: 1, gap: 1 }}>
                   <Box>
-                    <Typography variant="h6" gutterBottom>
+                    <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
                       {event.name}
                     </Typography>
-                    <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                    <Typography variant="subtitle1" color="text.secondary" gutterBottom sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       {event.chineseName}
                     </Typography>
                   </Box>
@@ -538,11 +827,12 @@ export default function CalendarPage() {
                       backgroundColor: '#FFB84D',
                       color: 'white',
                       textTransform: 'none',
-                      fontSize: '16px',
-                      px: 2,
-                      py: 1.5,
+                      fontSize: { xs: '14px', sm: '16px' },
+                      px: { xs: 1.5, sm: 2 },
+                      py: { xs: 1, sm: 1.5 },
                       borderRadius: '12px',
                       border: '2px solid #FFB84D',
+                      flexShrink: 0,
                       '&:hover': {
                         backgroundColor: '#FFA833',
                         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
@@ -564,13 +854,13 @@ export default function CalendarPage() {
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   {event.location}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography variant="body2" color="text.secondary" gutterBottom sx={{ display: { xs: 'none', sm: 'block' } }}>
                   {event.chineseLocation}
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
+                <Typography variant="body2" sx={{ mt: 1, display: { xs: 'none', sm: 'block' } }}>
                   {event.description}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                   {event.chineseDescription}
                 </Typography>
               </Box>
@@ -695,48 +985,238 @@ export default function CalendarPage() {
         </Box>
       )}
 
-      {/* Admin Info Dialog */}
-      <Dialog open={adminInfoOpen} onClose={() => setAdminInfoOpen(false)} maxWidth="sm" fullWidth>
+      {/* Event Form Dialog */}
+      <Dialog open={eventFormOpen} onClose={() => setEventFormOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>
-          Event Management / 活动管理
+          {editingEventId ? 'Edit Event / 编辑活动' : 'Add Event / 添加活动'}
         </DialogTitle>
         <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2" gutterBottom>
-              <strong>How to manage events:</strong>
-            </Typography>
-            <Typography variant="body2" component="div">
-              Events are stored in CSV files. To add, edit, or delete events:
-              <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                <li>Navigate to <code>public/data/events.csv</code></li>
-                <li>Edit the CSV file with your changes</li>
-                <li>Save the file and refresh the page</li>
-              </ol>
-            </Typography>
-          </Alert>
-          <Alert severity="info">
-            <Typography variant="body2" gutterBottom>
-              <strong>如何管理活动：</strong>
-            </Typography>
-            <Typography variant="body2" component="div">
-              活动存储在CSV文件中。要添加、编辑或删除活动：
-              <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                <li>导航到 <code>public/data/events.csv</code></li>
-                <li>使用您的更改编辑CSV文件</li>
-                <li>保存文件并刷新页面</li>
-              </ol>
-            </Typography>
-          </Alert>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            CSV columns: id, name, chineseName, date, time, location, chineseLocation, description, chineseDescription, image, status
-          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              name="name"
+              label="Event Name / 活动名称 *"
+              value={formData.name}
+              onChange={handleFormChange('name')}
+              onKeyDown={handleAutoFill}
+              placeholder={eventDefaultValues.name}
+              fullWidth
+              required
+            />
+            <TextField
+              name="chinese_name"
+              label="Chinese Name / 中文名称"
+              value={formData.chinese_name}
+              onChange={handleFormChange('chinese_name')}
+              onKeyDown={handleAutoFill}
+              placeholder={eventDefaultValues.chinese_name}
+              fullWidth
+            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Date / 日期 *"
+                type="date"
+                value={formData.date}
+                onChange={handleFormChange('date')}
+                fullWidth
+                required
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                name="time"
+                label="Time / 时间"
+                value={formData.time}
+                onChange={handleFormChange('time')}
+                onKeyDown={handleAutoFill}
+                fullWidth
+                placeholder={eventDefaultValues.time}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                name="location"
+                label="Location / 地点"
+                value={formData.location}
+                onChange={handleFormChange('location')}
+                onKeyDown={handleAutoFill}
+                placeholder={eventDefaultValues.location}
+                fullWidth
+              />
+              <TextField
+                name="chinese_location"
+                label="Chinese Location / 中文地点"
+                value={formData.chinese_location}
+                onChange={handleFormChange('chinese_location')}
+                onKeyDown={handleAutoFill}
+                placeholder={eventDefaultValues.chinese_location}
+                fullWidth
+              />
+            </Box>
+            <TextField
+              name="description"
+              label="Description / 描述"
+              value={formData.description}
+              onChange={handleFormChange('description')}
+              onKeyDown={handleAutoFill}
+              placeholder={eventDefaultValues.description}
+              fullWidth
+              multiline
+              rows={3}
+            />
+            <TextField
+              name="chinese_description"
+              label="Chinese Description / 中文描述"
+              value={formData.chinese_description}
+              onChange={handleFormChange('chinese_description')}
+              onKeyDown={handleAutoFill}
+              placeholder={eventDefaultValues.chinese_description}
+              fullWidth
+              multiline
+              rows={3}
+            />
+            {/* Image Upload */}
+            <Box sx={{ border: '1px dashed #ccc', borderRadius: 1, p: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Event Image / 活动图片
+              </Typography>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                id="event-image-upload"
+              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                <label htmlFor="event-image-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={uploadingImage ? <CircularProgress size={20} /> : <CloudUploadIcon />}
+                    disabled={uploadingImage}
+                    sx={{
+                      borderColor: '#FFB84D',
+                      color: '#FFB84D',
+                      '&:hover': { borderColor: '#FFA833', backgroundColor: 'rgba(255, 184, 77, 0.04)' }
+                    }}
+                  >
+                    {uploadingImage ? 'Uploading...' : 'Choose Image / 选择图片'}
+                  </Button>
+                </label>
+                {(imagePreview || formData.image) && (
+                  <Button
+                    variant="text"
+                    color="error"
+                    size="small"
+                    onClick={handleRemoveImage}
+                  >
+                    Remove / 移除
+                  </Button>
+                )}
+              </Box>
+              {(imagePreview || formData.image) && (
+                <Box sx={{ mt: 2 }}>
+                  <img
+                    src={imagePreview || formData.image}
+                    alt="Preview"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: 200,
+                      borderRadius: 4,
+                      objectFit: 'cover'
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </Box>
+              )}
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Max size: 5MB. Supported: JPG, PNG, GIF / 最大5MB，支持JPG、PNG、GIF格式
+              </Typography>
+            </Box>
+            <TextField
+              name="signup_link"
+              label="Signup Link / 报名链接"
+              value={formData.signup_link}
+              onChange={handleFormChange('signup_link')}
+              onKeyDown={handleAutoFill}
+              fullWidth
+              placeholder={eventDefaultValues.signup_link}
+            />
+            <TextField
+              select
+              label="Status / 状态 *"
+              value={formData.status}
+              onChange={handleFormChange('status')}
+              fullWidth
+              required
+            >
+              <MenuItem value="Upcoming">Upcoming / 即将举行</MenuItem>
+              <MenuItem value="Highlight">Highlight / 精选</MenuItem>
+              <MenuItem value="Cancelled">Cancelled / 已取消</MenuItem>
+            </TextField>
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAdminInfoOpen(false)}>
-            Close / 关闭
+          <Button onClick={() => setEventFormOpen(false)} disabled={loading}>
+            Cancel / 取消
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleFormSubmit}
+            disabled={loading}
+            sx={{
+              backgroundColor: '#FFB84D',
+              '&:hover': { backgroundColor: '#FFA833' }
+            }}
+          >
+            {loading ? <CircularProgress size={24} /> : (editingEventId ? 'Update / 更新' : 'Create / 创建')}
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>
+          Delete Event / 删除活动
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete "{eventToDelete?.name || eventToDelete?.title}"?
+          </Typography>
+          <Typography color="text.secondary">
+            您确定要删除 "{eventToDelete?.chineseName || eventToDelete?.chineseTitle || eventToDelete?.name || eventToDelete?.title}" 吗？
+          </Typography>
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            This action cannot be undone. / 此操作无法撤销。
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={loading}>
+            Cancel / 取消
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteConfirm}
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Delete / 删除'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

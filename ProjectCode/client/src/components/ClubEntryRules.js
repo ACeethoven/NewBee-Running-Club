@@ -14,7 +14,8 @@ const ClubEntryRules = () => {
           sx={{
             fontWeight: 600,
             color: '#333',
-            mb: 3
+            mb: { xs: 1.5, sm: 2 },
+            fontSize: { xs: '1rem', sm: '1.25rem', md: '1.5rem' }
           }}
         >
           新蜂跑团 Club Entry 名额分配规则（2025 年赛事）
@@ -38,8 +39,9 @@ const ClubEntryRules = () => {
           sx={{
             fontWeight: 600,
             color: '#333',
-            mt: 4,
-            mb: 2
+            mt: { xs: 3, sm: 4 },
+            mb: { xs: 1, sm: 2 },
+            fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' }
           }}
         >
           一、什么是 Club Entry？
@@ -82,8 +84,9 @@ const ClubEntryRules = () => {
           sx={{
             fontWeight: 600,
             color: '#333',
-            mt: 4,
-            mb: 2
+            mt: { xs: 3, sm: 4 },
+            mb: { xs: 1, sm: 2 },
+            fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' }
           }}
         >
           二、基本原则
@@ -112,8 +115,9 @@ const ClubEntryRules = () => {
           sx={{
             fontWeight: 600,
             color: '#333',
-            mt: 4,
-            mb: 2
+            mt: { xs: 3, sm: 4 },
+            mb: { xs: 1, sm: 2 },
+            fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' }
           }}
         >
           三、分配规则与说明
@@ -198,8 +202,9 @@ const ClubEntryRules = () => {
           sx={{
             fontWeight: 600,
             color: '#333',
-            mt: 4,
-            mb: 2
+            mt: { xs: 3, sm: 4 },
+            mb: { xs: 1, sm: 2 },
+            fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' }
           }}
         >
           四、报名方式
@@ -245,8 +250,9 @@ const ClubEntryRules = () => {
           sx={{
             fontWeight: 600,
             color: '#333',
-            mt: 4,
-            mb: 2
+            mt: { xs: 3, sm: 4 },
+            mb: { xs: 1, sm: 2 },
+            fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' }
           }}
         >
           六、补充说明
@@ -283,8 +289,9 @@ const ClubEntryRules = () => {
           sx={{
             fontWeight: 600,
             color: '#333',
-            mt: 4,
-            mb: 2
+            mt: { xs: 3, sm: 4 },
+            mb: { xs: 1, sm: 2 },
+            fontSize: { xs: '0.9rem', sm: '1rem', md: '1.25rem' }
           }}
         >
           📊 Heylo 积分系统说明

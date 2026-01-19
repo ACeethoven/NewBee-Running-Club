@@ -47,17 +47,24 @@ print_status "System updated"
 # Step 2: Install dependencies
 echo ""
 echo "Step 2: Installing dependencies..."
+
+# Install Node.js 18.x if not present
+if ! command -v node &> /dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+fi
+
 apt-get install -y \
     nginx \
     python3 \
     python3-pip \
     python3-venv \
     nodejs \
-    npm \
     git \
     certbot \
     python3-certbot-nginx \
-    curl
+    curl \
+    rsync
+# Note: npm is included with NodeSource nodejs package
 print_status "Dependencies installed"
 
 # Step 3: Create directory structure
@@ -156,7 +163,16 @@ print_status "Backend service configured"
 # Step 9: Setup Nginx
 echo ""
 echo "Step 9: Configuring Nginx..."
-cp $APP_DIR/repo/deploy/nginx/newbeerunning.conf /etc/nginx/sites-available/
+
+# Check if using Cloudflare (origin cert exists)
+if [ -f "/etc/ssl/cloudflare/cert.pem" ]; then
+    print_status "Cloudflare origin certificate detected, using Cloudflare config"
+    cp $APP_DIR/repo/deploy/nginx/newbeerunning-cloudflare.conf /etc/nginx/sites-available/newbeerunning.conf
+else
+    print_warning "No Cloudflare cert found, using Let's Encrypt config"
+    cp $APP_DIR/repo/deploy/nginx/newbeerunning.conf /etc/nginx/sites-available/newbeerunning.conf
+fi
+
 ln -sf /etc/nginx/sites-available/newbeerunning.conf /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
@@ -164,10 +180,12 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 print_status "Nginx configured"
 
-# Step 10: SSL Certificates
+# Step 10: SSL Certificates (skip if using Cloudflare)
 echo ""
 echo "Step 10: Setting up SSL certificates..."
-if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+if [ -f "/etc/ssl/cloudflare/cert.pem" ]; then
+    print_status "Using Cloudflare origin certificate"
+elif [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
     print_warning "SSL certificates not found. Running Certbot..."
     certbot --nginx -d $DOMAIN -d www.$DOMAIN -d api.$DOMAIN --non-interactive --agree-tos --email admin@$DOMAIN
 else

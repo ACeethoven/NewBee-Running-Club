@@ -41,6 +41,7 @@ import {
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context';
+import { useAutoFillOnTab } from '../hooks';
 import { logout } from '../firebase/auth';
 import { storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -69,6 +70,26 @@ const ProfilePage = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // Default values for Tab auto-fill
+  const profileDefaultValues = {
+    display_name: 'Display Name',
+    display_name_cn: '中文名',
+    phone: '000-000-0000',
+    nyrr_member_id: 'Not provided',
+    emergency_contact_name: 'Emergency Contact',
+    emergency_contact_phone: '000-000-0000',
+    location: 'New York, NY',
+    weekly_frequency: '3-4 times per week',
+    monthly_mileage: '50 miles',
+    running_experience: 'Beginner',
+    goals: 'Stay healthy and enjoy running!'
+  };
+
+  const handleAutoFill = useAutoFillOnTab({
+    setValue: (field, value) => setEditFormData(prev => ({ ...prev, [field]: value })),
+    defaultValues: profileDefaultValues
+  });
 
   // Fetch member data
   const fetchMemberData = useCallback(async () => {
@@ -236,7 +257,7 @@ const ProfilePage = () => {
   const displayNameCn = memberData?.display_name_cn;
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: { xs: 2, sm: 4 }, mb: { xs: 2, sm: 4 }, px: { xs: 1, sm: 2 } }}>
       {/* Hidden file input for photo upload */}
       <input
         type="file"
@@ -247,9 +268,21 @@ const ProfilePage = () => {
       />
 
       {/* Header Section */}
-      <Paper elevation={3} sx={{ p: 4, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+      <Paper elevation={3} sx={{ p: { xs: 2, sm: 4 }, mb: 3 }}>
+        <Box sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'center', sm: 'flex-start' },
+          justifyContent: 'space-between',
+          gap: { xs: 2, sm: 0 }
+        }}>
+          <Box sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: 'center',
+            gap: { xs: 2, sm: 3 },
+            textAlign: { xs: 'center', sm: 'left' }
+          }}>
             <Tooltip title="Click to change photo / 点击更换头像">
               <Badge
                 overlap="circular"
@@ -262,8 +295,8 @@ const ProfilePage = () => {
                     sx={{
                       backgroundColor: '#FFB84D',
                       color: 'white',
-                      width: 32,
-                      height: 32,
+                      width: { xs: 28, sm: 32 },
+                      height: { xs: 28, sm: 32 },
                       '&:hover': { backgroundColor: '#FFA833' }
                     }}
                   >
@@ -275,8 +308,8 @@ const ProfilePage = () => {
                   src={memberData?.profile_photo_url || currentUser?.photoURL}
                   alt={displayName}
                   sx={{
-                    width: 100,
-                    height: 100,
+                    width: { xs: 80, sm: 100 },
+                    height: { xs: 80, sm: 100 },
                     cursor: 'pointer',
                     '&:hover': { opacity: 0.8 }
                   }}
@@ -285,15 +318,15 @@ const ProfilePage = () => {
               </Badge>
             </Tooltip>
             <Box>
-              <Typography variant="h4" component="h1">
+              <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.5rem', sm: '2.125rem' } }}>
                 {displayName}
                 {displayNameCn && (
-                  <Typography component="span" variant="h5" color="text.secondary" sx={{ ml: 1 }}>
+                  <Typography component="span" variant="h5" color="text.secondary" sx={{ ml: 1, fontSize: { xs: '1.1rem', sm: '1.5rem' } }}>
                     ({displayNameCn})
                   </Typography>
                 )}
               </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 {memberData?.email || currentUser?.email}
               </Typography>
               {memberData?.status && (
@@ -309,13 +342,23 @@ const ProfilePage = () => {
               )}
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{
+            display: 'flex',
+            flexDirection: { xs: 'row', sm: 'row' },
+            gap: 1,
+            width: { xs: '100%', sm: 'auto' },
+            justifyContent: { xs: 'center', sm: 'flex-end' }
+          }}>
             {memberData && (
               <Button
                 variant="outlined"
                 startIcon={<EditIcon />}
                 onClick={handleOpenEditDialog}
-                sx={{ textTransform: 'none' }}
+                sx={{
+                  textTransform: 'none',
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  px: { xs: 1.5, sm: 2 }
+                }}
               >
                 Edit Profile
               </Button>
@@ -327,6 +370,8 @@ const ProfilePage = () => {
                 backgroundColor: '#FFB84D',
                 color: 'white',
                 textTransform: 'none',
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                px: { xs: 1.5, sm: 2 },
                 '&:hover': {
                   backgroundColor: '#FFA833',
                 }
@@ -590,18 +635,24 @@ const ProfilePage = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="display_name"
                 fullWidth
                 label="Name (English) / 英文名"
                 value={editFormData.display_name || ''}
                 onChange={handleEditFormChange('display_name')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.display_name}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="display_name_cn"
                 fullWidth
                 label="Name (Chinese) / 中文名"
                 value={editFormData.display_name_cn || ''}
                 onChange={handleEditFormChange('display_name_cn')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.display_name_cn}
               />
             </Grid>
             <Grid item xs={12}>
@@ -615,18 +666,24 @@ const ProfilePage = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="phone"
                 fullWidth
                 label="Phone / 电话"
                 value={editFormData.phone || ''}
                 onChange={handleEditFormChange('phone')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.phone}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="nyrr_member_id"
                 fullWidth
                 label="NYRR Runner ID"
                 value={editFormData.nyrr_member_id || ''}
                 onChange={handleEditFormChange('nyrr_member_id')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.nyrr_member_id}
                 helperText="Your NYRR account ID for race results"
               />
             </Grid>
@@ -639,18 +696,24 @@ const ProfilePage = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="emergency_contact_name"
                 fullWidth
                 label="Contact Name / 联系人姓名"
                 value={editFormData.emergency_contact_name || ''}
                 onChange={handleEditFormChange('emergency_contact_name')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.emergency_contact_name}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="emergency_contact_phone"
                 fullWidth
                 label="Contact Phone / 联系人电话"
                 value={editFormData.emergency_contact_phone || ''}
                 onChange={handleEditFormChange('emergency_contact_phone')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.emergency_contact_phone}
               />
             </Grid>
 
@@ -662,49 +725,64 @@ const ProfilePage = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="location"
                 fullWidth
                 label="Location / 跑步地点"
                 value={editFormData.location || ''}
                 onChange={handleEditFormChange('location')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.location}
                 helperText="Where do you usually run? / 你通常在哪里跑步？"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="weekly_frequency"
                 fullWidth
                 label="Weekly Frequency / 每周跑步频次"
                 value={editFormData.weekly_frequency || ''}
                 onChange={handleEditFormChange('weekly_frequency')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.weekly_frequency}
                 helperText="e.g., 3-4 times per week / 例如：每周3-4次"
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                name="monthly_mileage"
                 fullWidth
                 label="Monthly Mileage / 月跑量"
                 value={editFormData.monthly_mileage || ''}
                 onChange={handleEditFormChange('monthly_mileage')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.monthly_mileage}
                 helperText="e.g., 100 miles / 例如：100英里"
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
+                name="running_experience"
                 fullWidth
                 multiline
                 rows={2}
                 label="Running Experience / 跑步经历"
                 value={editFormData.running_experience || ''}
                 onChange={handleEditFormChange('running_experience')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.running_experience}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
+                name="goals"
                 fullWidth
                 multiline
                 rows={2}
                 label="Goals / 跑步目标"
                 value={editFormData.goals || ''}
                 onChange={handleEditFormChange('goals')}
+                onKeyDown={handleAutoFill}
+                placeholder={profileDefaultValues.goals}
               />
             </Grid>
           </Grid>

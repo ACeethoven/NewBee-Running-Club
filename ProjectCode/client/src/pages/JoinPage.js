@@ -93,7 +93,8 @@ export default function JoinPage() {
   const [showOtherLocation, setShowOtherLocation] = useState(false);
   const termsContainerRef = useRef(null);
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     nyrr_id: '',
     runningExperience: '',
@@ -187,7 +188,8 @@ export default function JoinPage() {
     try {
       // Map form data to API format
       const applicationData = {
-        name: formData.name,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
         email: formData.email,
         nyrr_id: formData.nyrr_id || null,
         running_experience: formData.runningExperience,
@@ -221,7 +223,8 @@ export default function JoinPage() {
 
   const handleStartOver = () => {
     setFormData({
-      name: '',
+      firstName: '',
+      lastName: '',
       email: '',
       nyrr_id: '',
       runningExperience: '',
@@ -513,16 +516,28 @@ export default function JoinPage() {
           {submitError}
         </Alert>
       )}
-      <TextField
-        fullWidth
-        label="Name 姓名"
-        name="name"
-        value={formData.name}
-        onChange={handleFormChange}
-        margin="normal"
-        required
-        disabled={submitting}
-      />
+      <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+        <TextField
+          fullWidth
+          label="First Name 名"
+          name="firstName"
+          value={formData.firstName}
+          onChange={handleFormChange}
+          margin="normal"
+          required
+          disabled={submitting}
+        />
+        <TextField
+          fullWidth
+          label="Last Name 姓"
+          name="lastName"
+          value={formData.lastName}
+          onChange={handleFormChange}
+          margin="normal"
+          required
+          disabled={submitting}
+        />
+      </Box>
       <TextField
         fullWidth
         label="Email 电子邮箱"
