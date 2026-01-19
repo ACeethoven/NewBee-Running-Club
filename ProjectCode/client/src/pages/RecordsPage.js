@@ -566,9 +566,9 @@ export default function RecordsPage() {
         <Tabs
           value={currentTab}
           onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
+          variant={isDesktop ? "fullWidth" : "scrollable"}
+          scrollButtons={isDesktop ? false : "auto"}
+          allowScrollButtonsMobile={!isDesktop}
           sx={{
             mb: 3,
             '& .MuiTab-root': {
@@ -576,7 +576,7 @@ export default function RecordsPage() {
               '&.Mui-selected': {
                 color: '#FFA500',
               },
-              minWidth: { xs: 'auto', sm: 120 },
+              minWidth: isDesktop ? 'auto' : { xs: 'auto', sm: 120 },
               px: { xs: 1.5, sm: 2 },
               fontSize: { xs: '0.7rem', sm: '0.875rem' }
             },

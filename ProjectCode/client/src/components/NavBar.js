@@ -1,8 +1,10 @@
-import { AppBar, Box, Button, Container, Switch, Toolbar, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { AppBar, Badge, Box, Button, Container, Switch, Toolbar, Tooltip, Typography, useMediaQuery, useTheme } from '@mui/material';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import PersonIcon from '@mui/icons-material/Person';
 import { NavLink } from 'react-router-dom';
-import { useAdmin } from '../context';
+import { useEffect, useState } from 'react';
+import { useAdmin, useAuth } from '../context';
+import { getPendingMembers } from '../api/members';
 
 function NavText({ href, text, shortText }) {
   const theme = useTheme();
@@ -44,8 +46,30 @@ function NavText({ href, text, shortText }) {
 
 export default function NavBar() {
   const { isAdmin, adminModeEnabled, toggleAdminMode } = useAdmin();
+  const { currentUser } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Fetch pending applications count for admins
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      if (isAdmin && currentUser?.uid) {
+        try {
+          const pendingMembers = await getPendingMembers(currentUser.uid);
+          setPendingCount(pendingMembers?.length || 0);
+        } catch (error) {
+          console.error('Error fetching pending members:', error);
+          setPendingCount(0);
+        }
+      }
+    };
+
+    fetchPendingCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, [isAdmin, currentUser?.uid]);
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -105,8 +129,21 @@ export default function NavBar() {
                         }
                       }}
                     >
-                      <AdminPanelSettingsIcon sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' }, mr: isMobile ? 0 : 0.5 }} />
-                      {!isMobile && 'Admin'}
+                      <Badge
+                        badgeContent={pendingCount}
+                        color="error"
+                        sx={{
+                          '& .MuiBadge-badge': {
+                            fontSize: '0.65rem',
+                            minWidth: '16px',
+                            height: '16px',
+                            padding: '0 4px',
+                          }
+                        }}
+                      >
+                        <AdminPanelSettingsIcon sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' } }} />
+                      </Badge>
+                      {!isMobile && <span style={{ marginLeft: '4px' }}>Admin</span>}
                     </Button>
                   </Tooltip>
                   <Tooltip title={adminModeEnabled ? "Switch to Runner Mode / 切换跑者模式" : "Switch to Admin Mode / 切换管理员模式"}>
