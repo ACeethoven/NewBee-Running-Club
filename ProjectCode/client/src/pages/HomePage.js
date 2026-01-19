@@ -41,10 +41,9 @@ import Logo from '../components/Logo';
 import NavigationButtons from '../components/NavigationButtons';
 import EventModal from '../components/EventModal';
 import { useAuth } from '../context/AuthContext';
-import { getMemberByFirebaseUid } from '../api/members';
+import { useAdmin } from '../context/AdminContext';
 import { getCarouselBanners } from '../api/banners';
 import { getActiveSections, updateSection, reorderSections, uploadImage } from '../api/homepageSections';
-import { committeeMembers } from '../data/committeeMembers';
 
 // Fallback carousel images if API fails
 const fallbackCarouselImages = [
@@ -79,7 +78,7 @@ const fallbackSections = [
 ];
 
 // Sortable Section Component
-function SortableSection({ section, isAdmin, onEdit }) {
+function SortableSection({ section, adminModeEnabled, onEdit }) {
   const {
     attributes,
     listeners,
@@ -151,7 +150,7 @@ function SortableSection({ section, isAdmin, onEdit }) {
       <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 }, mt: { xs: 1, sm: 1.5 } }}>
         <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {/* Drag Handle - Only for admins */}
-          {isAdmin && (
+          {adminModeEnabled && (
             <Tooltip title="Drag to reorder">
               <IconButton
                 {...attributes}
@@ -183,7 +182,7 @@ function SortableSection({ section, isAdmin, onEdit }) {
             {section.title_cn}
           </Typography>
           {/* Admin Edit Button */}
-          {isAdmin && (
+          {adminModeEnabled && (
             <Tooltip title="Edit Section">
               <IconButton
                 onClick={(e) => onEdit(e, section)}
@@ -210,6 +209,7 @@ function SortableSection({ section, isAdmin, onEdit }) {
 
 export default function HomePage() {
   const { currentUser } = useAuth();
+  const { adminModeEnabled } = useAdmin();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [carouselImages, setCarouselImages] = useState([]);
@@ -217,7 +217,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSection, setEditingSection] = useState(null);
   const [editFormData, setEditFormData] = useState({
@@ -240,27 +239,6 @@ export default function HomePage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  // Check if current user is admin
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!currentUser) {
-        setIsAdmin(false);
-        return;
-      }
-      try {
-        const memberData = await getMemberByFirebaseUid(currentUser.uid);
-        const isAdminUser = memberData.status === 'admin';
-        const isInCommitteeList = committeeMembers.some(
-          cm => cm.name === memberData.display_name || cm.name === memberData.username
-        );
-        setIsAdmin(isAdminUser || isInCommitteeList);
-      } catch (err) {
-        setIsAdmin(false);
-      }
-    };
-    checkAdminStatus();
-  }, [currentUser]);
 
   // Fetch carousel banners and sections
   useEffect(() => {
@@ -645,7 +623,7 @@ export default function HomePage() {
       )}
 
       {/* Dynamic Homepage Sections with Drag-and-Drop for Admins */}
-      {isAdmin ? (
+      {adminModeEnabled ? (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -659,7 +637,7 @@ export default function HomePage() {
               <SortableSection
                 key={section.id}
                 section={section}
-                isAdmin={isAdmin}
+                adminModeEnabled={adminModeEnabled}
                 onEdit={handleEditSection}
               />
             ))}
@@ -670,7 +648,7 @@ export default function HomePage() {
           <SortableSection
             key={section.id}
             section={section}
-            isAdmin={false}
+            adminModeEnabled={false}
             onEdit={() => {}}
           />
         ))
