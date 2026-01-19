@@ -166,7 +166,8 @@ export default function HighlightsPage() {
             fontWeight: 600,
             color: '#FFA500',
             mb: { xs: 2, sm: 3 },
-            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
           }}
         >
           Featured Highlights
@@ -246,34 +247,24 @@ export default function HighlightsPage() {
 
       {/* Past Events Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 6 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 600,
-              color: '#FFA500',
-              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-            }}
-          >
-            Past Events
-            <br />
-            历史活动
-          </Typography>
-          
-          <IconButton 
-            sx={{ 
-              color: '#FFA500',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 165, 0, 0.1)'
-              }
-            }}
-          >
-            <FilterListIcon />
-          </IconButton>
-        </Box>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: { xs: 2, sm: 3 },
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
+          }}
+        >
+          Past Events
+          <br />
+          历史活动
+        </Typography>
 
         {/* Filters */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Grid container spacing={2} sx={{ maxWidth: 1000 }}>
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               select
@@ -330,7 +321,8 @@ export default function HighlightsPage() {
               <MenuItem value="cancelled">Cancelled</MenuItem>
             </TextField>
           </Grid>
-        </Grid>
+          </Grid>
+        </Box>
 
         {/* Events List */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

@@ -57,7 +57,7 @@ export default function SponsorsPage() {
       setEnterpriseDonors(data.enterprise_donors || []);
     } catch (err) {
       console.error('Error fetching donors:', err);
-      setError('Failed to load donors. Please try again. / 加载捐助者失败，请重试。');
+      setError('Failed to load donors. Please try again. / 加载赞助者失败，请重试。');
     } finally {
       setLoading(false);
     }
@@ -129,7 +129,7 @@ export default function SponsorsPage() {
       fetchDonors(); // Refresh the list
     } catch (err) {
       console.error('Error saving donor:', err);
-      setError('Failed to save donor. Please try again. / 保存捐助者失败，请重试。');
+      setError('Failed to save donor. Please try again. / 保存赞助者失败，请重试。');
     } finally {
       setSaving(false);
     }
@@ -149,7 +149,7 @@ export default function SponsorsPage() {
       fetchDonors(); // Refresh the list
     } catch (err) {
       console.error('Error deleting donor:', err);
-      setError('Failed to delete donor. Please try again. / 删除捐助者失败，请重试。');
+      setError('Failed to delete donor. Please try again. / 删除赞助者失败，请重试。');
     } finally {
       setSaving(false);
     }
@@ -187,7 +187,7 @@ export default function SponsorsPage() {
       return (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <Typography color="text.secondary">
-            No donors yet. / 暂无捐助者。
+            No donors yet. / 暂无赞助者。
           </Typography>
         </Box>
       );
@@ -277,28 +277,30 @@ export default function SponsorsPage() {
       {adminModeEnabled && (
         <Container maxWidth="xl" sx={{ px: 2, mt: 2 }}>
           <Alert severity="info" icon={<InfoIcon />}>
-            Admin mode enabled. You can add, edit, and delete donors. / 管理员模式已开启，您可以添加、编辑和删除捐助者。
+            Admin mode enabled. You can add, edit, and delete donors. / 管理员模式已开启，您可以添加、编辑和删除赞助者。
           </Alert>
         </Container>
       )}
 
       {/* Sponsors Text */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 600,
-              color: '#FFA500',
-              fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' }
-            }}
-          >
-            Our Sponsors/Donors
-            <br />
-            我们的捐助者/赞助商
-          </Typography>
+        <Typography
+          variant="h4"
+          sx={{
+            fontWeight: 600,
+            color: '#FFA500',
+            mb: 2,
+            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+            textAlign: 'center'
+          }}
+        >
+          Our Sponsors/Donors
+          <br />
+          我们的赞助者/赞助商
+        </Typography>
 
-          {adminModeEnabled && (
+        {adminModeEnabled && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -312,10 +314,12 @@ export default function SponsorsPage() {
                 }
               }}
             >
-              Add Donor / 添加捐助者
+              Add Donor / 添加赞助者
             </Button>
-          )}
-        </Box>
+          </Box>
+        )}
+
+        {!adminModeEnabled && <Box sx={{ mb: 3 }} />}
       </Container>
 
       {/* Sponsors Content */}
@@ -426,7 +430,7 @@ export default function SponsorsPage() {
       {/* Edit/Add Donor Dialog */}
       <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {editingDonor ? 'Edit Donor / 编辑捐助者' : 'Add Donor / 添加捐助者'}
+          {editingDonor ? 'Edit Donor / 编辑赞助者' : 'Add Donor / 添加赞助者'}
         </DialogTitle>
         <DialogContent>
           <TextField
@@ -514,7 +518,7 @@ export default function SponsorsPage() {
             Are you sure you want to delete donor "{editingDonor?.name}"?
           </Typography>
           <Typography color="text.secondary" sx={{ mt: 1 }}>
-            确定要删除捐助者 "{editingDonor?.name}" 吗？
+            确定要删除赞助者 "{editingDonor?.name}" 吗？
           </Typography>
         </DialogContent>
         <DialogActions>

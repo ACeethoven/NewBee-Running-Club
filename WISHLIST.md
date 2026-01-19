@@ -27,7 +27,6 @@ Claude will:
 - [ ] Create admin dashboard page at /admin with tabbed interface
 - [ ] Add "Create Event" form - allows admins to create new calendar events
 - [ ] Add "Send Newsletter" feature - compose and trigger mass email to all members
-- [ ] Add "Log Credits" interface - quickly add credits to members (registration, volunteer, etc.)
 - [ ] Add "Manage Members" table - view/edit member status, approve pending applications
 - [ ] Add "View Analytics" section - member stats, event attendance, donation totals
 
