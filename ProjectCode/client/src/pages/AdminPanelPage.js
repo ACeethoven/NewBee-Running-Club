@@ -989,7 +989,7 @@ export default function AdminPanelPage() {
                         src={banner.image_url}
                         alt={banner.alt_text || 'Banner preview'}
                         sx={{ width: 100, height: 60, objectFit: 'cover', borderRadius: 1 }}
-                        onError={(e) => { e.target.src = '/placeholder-banner.png'; }}
+                        onError={(e) => { e.target.src = '/master-image-1.jpg'; }}
                       />
                     </TableCell>
                     <TableCell>
