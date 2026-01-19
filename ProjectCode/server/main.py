@@ -5,7 +5,7 @@ from sqlalchemy import func
 from typing import List, Optional
 import os
 
-from database import get_db, create_tables, Donor, Results, Member, Event, MeetingMinutes, Comment, Like, Reaction, EventCommentSettings
+from database import get_db, create_tables, Donor, Results, Member, Event, MeetingMinutes, Comment, Like, Reaction, EventCommentSettings, TempClubCredit
 from models import (
     DonorCreate, DonorUpdate, DonorResponse, DonorsListResponse, DonationSummary,
     MemberCreate, MemberUpdate, MemberResponse, MemberPublicResponse, MemberStatus,
@@ -16,7 +16,8 @@ from models import (
     LikeCreate, LikeResponse, LikeCountResponse,
     ReactionCreate, ReactionCountResponse, EventReactionsResponse, ALLOWED_EMOJIS,
     EventCommentSettingsUpdate, EventCommentSettingsResponse,
-    EventEngagementResponse, BatchEngagementRequest, BatchEngagementResponse
+    EventEngagementResponse, BatchEngagementRequest, BatchEngagementResponse,
+    TempClubCreditCreate, TempClubCreditUpdate, TempClubCreditResponse, CreditType
 )
 from email_service import EmailService
 import bcrypt
@@ -1612,6 +1613,113 @@ def update_event_settings(
     db.commit()
     db.refresh(settings)
     return settings
+
+
+# TEMP CLUB CREDITS ENDPOINTS
+
+@app.get("/api/credits", response_model=List[TempClubCreditResponse])
+def get_all_credits(
+    credit_type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all temp club credits, optionally filtered by credit type.
+    Credit types: 'total', 'activity', 'registration', 'volunteer'
+    """
+    query = db.query(TempClubCredit)
+    if credit_type:
+        if credit_type not in ['total', 'activity', 'registration', 'volunteer']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Credit type must be 'total', 'activity', 'registration', or 'volunteer'"
+            )
+        query = query.filter(TempClubCredit.credit_type == credit_type)
+
+    # Sort by total credits descending (registration + checkin)
+    credits = query.order_by(
+        (TempClubCredit.registration_credits + TempClubCredit.checkin_credits).desc(),
+        TempClubCredit.full_name
+    ).all()
+    return credits
+
+
+@app.get("/api/credits/{credit_id}", response_model=TempClubCreditResponse)
+def get_credit_by_id(credit_id: int, db: Session = Depends(get_db)):
+    """Get a specific credit entry by ID"""
+    credit = db.query(TempClubCredit).filter(TempClubCredit.id == credit_id).first()
+    if not credit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Credit with ID {credit_id} not found"
+        )
+    return credit
+
+
+@app.post("/api/credits", response_model=TempClubCreditResponse)
+def create_credit(
+    credit: TempClubCreditCreate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Create a new credit entry (admin only)"""
+    credit_data = credit.model_dump()
+    # Convert enum to string value
+    if 'credit_type' in credit_data and credit_data['credit_type']:
+        credit_data['credit_type'] = credit_data['credit_type'].value
+
+    db_credit = TempClubCredit(**credit_data)
+    db.add(db_credit)
+    db.commit()
+    db.refresh(db_credit)
+    return db_credit
+
+
+@app.put("/api/credits/{credit_id}", response_model=TempClubCreditResponse)
+def update_credit(
+    credit_id: int,
+    credit_update: TempClubCreditUpdate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Update a credit entry (admin only)"""
+    credit = db.query(TempClubCredit).filter(TempClubCredit.id == credit_id).first()
+    if not credit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Credit with ID {credit_id} not found"
+        )
+
+    update_data = credit_update.model_dump(exclude_unset=True)
+
+    # Convert enum to string if credit_type is being updated
+    if 'credit_type' in update_data and update_data['credit_type']:
+        update_data['credit_type'] = update_data['credit_type'].value
+
+    for field, value in update_data.items():
+        setattr(credit, field, value)
+
+    db.commit()
+    db.refresh(credit)
+    return credit
+
+
+@app.delete("/api/credits/{credit_id}")
+def delete_credit(
+    credit_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Delete a credit entry (admin only)"""
+    credit = db.query(TempClubCredit).filter(TempClubCredit.id == credit_id).first()
+    if not credit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Credit with ID {credit_id} not found"
+        )
+
+    db.delete(credit)
+    db.commit()
+    return {"message": f"Credit {credit_id} deleted successfully"}
 
 
 if __name__ == "__main__":

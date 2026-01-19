@@ -375,3 +375,38 @@ class BatchEngagementRequest(BaseModel):
 
 class BatchEngagementResponse(BaseModel):
     engagements: Dict[int, EventEngagementResponse]
+
+
+# Temp Club Credit Schemas
+class CreditType(str, Enum):
+    total = "total"
+    activity = "activity"
+    registration = "registration"
+    volunteer = "volunteer"
+
+
+class TempClubCreditBase(BaseModel):
+    full_name: str = Field(..., max_length=255)
+    credit_type: CreditType
+    registration_credits: Decimal = Field(default=Decimal("0"), decimal_places=2)
+    checkin_credits: Decimal = Field(default=Decimal("0"), decimal_places=2)
+
+
+class TempClubCreditCreate(TempClubCreditBase):
+    pass
+
+
+class TempClubCreditUpdate(BaseModel):
+    full_name: Optional[str] = Field(None, max_length=255)
+    credit_type: Optional[CreditType] = None
+    registration_credits: Optional[Decimal] = Field(None, decimal_places=2)
+    checkin_credits: Optional[Decimal] = Field(None, decimal_places=2)
+
+
+class TempClubCreditResponse(TempClubCreditBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
