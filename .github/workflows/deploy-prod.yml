@@ -43,8 +43,8 @@ jobs:
             # Build frontend
             echo "Building frontend..."
             cd ProjectCode/client
-            npm ci
-            npm run build
+            npm install --prefer-offline
+            NODE_OPTIONS="--max-old-space-size=1536" npm run build
 
             # Deploy frontend
             echo "Deploying frontend..."
