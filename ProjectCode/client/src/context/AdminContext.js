@@ -5,14 +5,41 @@ import { committeeMembers } from '../data/committeeMembers';
 
 const AdminContext = createContext();
 
+// Storage key for admin mode persistence
+const ADMIN_MODE_STORAGE_KEY = 'newbee_admin_mode_enabled';
+
 export function useAdmin() {
   return useContext(AdminContext);
 }
 
+// Helper to safely get stored admin mode state
+const getStoredAdminMode = () => {
+  try {
+    const stored = localStorage.getItem(ADMIN_MODE_STORAGE_KEY);
+    return stored === 'true';
+  } catch {
+    return false;
+  }
+};
+
+// Helper to safely set stored admin mode state
+const setStoredAdminMode = (enabled) => {
+  try {
+    if (enabled) {
+      localStorage.setItem(ADMIN_MODE_STORAGE_KEY, 'true');
+    } else {
+      localStorage.removeItem(ADMIN_MODE_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors (e.g., in private browsing)
+  }
+};
+
 export function AdminProvider({ children }) {
   const { currentUser } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminModeEnabled, setAdminModeEnabled] = useState(false);
+  // Initialize adminModeEnabled from localStorage
+  const [adminModeEnabled, setAdminModeEnabled] = useState(getStoredAdminMode);
   const [memberData, setMemberData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -54,16 +81,32 @@ export function AdminProvider({ children }) {
     checkAdminStatus();
   }, [checkAdminStatus]);
 
-  // Reset admin mode when user logs out
+  // Reset admin mode when user logs out and clear from storage
   useEffect(() => {
     if (!currentUser) {
       setAdminModeEnabled(false);
+      setStoredAdminMode(false);
     }
   }, [currentUser]);
 
+  // Sync admin mode state to localStorage whenever it changes
+  useEffect(() => {
+    // Only persist if user is an admin, otherwise clear storage
+    if (isAdmin) {
+      setStoredAdminMode(adminModeEnabled);
+    } else if (adminModeEnabled) {
+      // User is not admin but admin mode was enabled (e.g., from stale storage)
+      // Reset to false
+      setAdminModeEnabled(false);
+      setStoredAdminMode(false);
+    }
+  }, [adminModeEnabled, isAdmin]);
+
   const toggleAdminMode = () => {
     if (isAdmin) {
-      setAdminModeEnabled(prev => !prev);
+      const newValue = !adminModeEnabled;
+      setAdminModeEnabled(newValue);
+      // Storage sync happens in the useEffect above
     }
   };
 
