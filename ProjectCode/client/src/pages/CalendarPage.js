@@ -631,6 +631,7 @@ export default function CalendarPage() {
                       borderRadius: '12px',
                       border: '2px solid #FFB84D',
                       alignSelf: 'flex-start',
+                      mt: 'auto',
                       '&:hover': {
                         backgroundColor: '#FFA833',
                         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
