@@ -12,3 +12,4 @@ xlrd
 requests
 aiosmtplib
 email-validator
+python-multipart

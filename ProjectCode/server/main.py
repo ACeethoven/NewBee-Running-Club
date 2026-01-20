@@ -659,6 +659,10 @@ def get_committee_members(db: Session = Depends(get_db)):
     return members
 
 
+# Statuses that are blocked from logging in
+BLOCKED_STATUSES = ['rejected', 'suspended', 'quit']
+
+
 @app.post("/api/members/firebase-sync", response_model=MemberResponse)
 def sync_firebase_user(user_data: FirebaseUserSync, db: Session = Depends(get_db)):
     """
@@ -669,6 +673,17 @@ def sync_firebase_user(user_data: FirebaseUserSync, db: Session = Depends(get_db
     # Check if member already exists with this firebase_uid
     existing_member = db.query(Member).filter(Member.firebase_uid == user_data.firebase_uid).first()
     if existing_member:
+        # Check if member is blocked from logging in
+        if existing_member.status in BLOCKED_STATUSES:
+            status_messages = {
+                'rejected': 'Your application has been rejected. Please contact newbeerunningclub@gmail.com for more information.',
+                'suspended': 'Your account has been suspended. Please contact newbeerunningclub@gmail.com for more information.',
+                'quit': 'Your account is no longer active. Please contact newbeerunningclub@gmail.com if you wish to rejoin.'
+            }
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=status_messages.get(existing_member.status, 'Account access denied')
+            )
         # Update display name and photo if changed
         if user_data.display_name and user_data.display_name != existing_member.display_name:
             existing_member.display_name = user_data.display_name
@@ -681,6 +696,17 @@ def sync_firebase_user(user_data: FirebaseUserSync, db: Session = Depends(get_db
     # Check if member exists with this email (might have been created before Firebase link)
     existing_email = db.query(Member).filter(Member.email == user_data.email).first()
     if existing_email:
+        # Check if member is blocked from logging in
+        if existing_email.status in BLOCKED_STATUSES:
+            status_messages = {
+                'rejected': 'Your application has been rejected. Please contact newbeerunningclub@gmail.com for more information.',
+                'suspended': 'Your account has been suspended. Please contact newbeerunningclub@gmail.com for more information.',
+                'quit': 'Your account is no longer active. Please contact newbeerunningclub@gmail.com if you wish to rejoin.'
+            }
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=status_messages.get(existing_email.status, 'Account access denied')
+            )
         # Link existing member to Firebase account
         existing_email.firebase_uid = user_data.firebase_uid
         if user_data.display_name:
@@ -729,6 +755,17 @@ def get_member_by_firebase_uid(firebase_uid: str, db: Session = Depends(get_db))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Member with Firebase UID not found"
+        )
+    # Check if member is blocked from logging in
+    if member.status in BLOCKED_STATUSES:
+        status_messages = {
+            'rejected': 'Your application has been rejected. Please contact newbeerunningclub@gmail.com for more information.',
+            'suspended': 'Your account has been suspended. Please contact newbeerunningclub@gmail.com for more information.',
+            'quit': 'Your account is no longer active. Please contact newbeerunningclub@gmail.com if you wish to rejoin.'
+        }
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=status_messages.get(member.status, 'Account access denied')
         )
     return member
 
@@ -779,13 +816,18 @@ def approve_member(
     return {"message": f"Member {member.display_name or member.username} approved successfully", "member_id": member_id}
 
 
+class RejectMemberRequest(BaseModel):
+    rejection_reason: str
+
+
 @app.put("/api/members/{member_id}/reject")
 def reject_member(
     member_id: int,
+    request: RejectMemberRequest,
     db: Session = Depends(get_db),
     current_user: Member = Depends(get_current_committee_or_admin)
 ):
-    """Reject a pending member application (deletes the member record) - Committee or Admin"""
+    """Reject a pending member application - Committee or Admin"""
     member = db.query(Member).filter(Member.id == member_id).first()
     if not member:
         raise HTTPException(
@@ -799,9 +841,31 @@ def reject_member(
             detail=f"Member is not in pending status (current status: {member.status})"
         )
 
-    db.delete(member)
+    if not request.rejection_reason or not request.rejection_reason.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Rejection reason is required"
+        )
+
+    # Update status instead of deleting
+    member.status = 'rejected'
+    member.status_reason = request.rejection_reason.strip()
+    member.status_updated_at = datetime.utcnow()
+    member.status_updated_by = current_user.display_name or current_user.username
     db.commit()
-    return {"message": f"Member application rejected and removed", "member_id": member_id}
+
+    # Send rejection email
+    try:
+        EmailService.send_rejection_notification(
+            member.email,
+            member.display_name or member.username,
+            request.rejection_reason.strip()
+        )
+    except Exception as e:
+        # Log error but don't fail the rejection
+        print(f"Failed to send rejection email: {e}")
+
+    return {"message": f"Member application rejected", "member_id": member_id}
 
 
 @app.post("/api/join/submit")

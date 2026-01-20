@@ -35,9 +35,7 @@ export async function submitActivity(memberId, activityData) {
  * @returns {Promise<Array>} List of pending activities
  */
 export async function getPendingActivities(firebaseUid) {
-  return api.get('/api/activities/pending', {
-    headers: { 'X-Firebase-UID': firebaseUid }
-  });
+  return api.get('/api/activities/pending', {}, { 'X-Firebase-UID': firebaseUid });
 }
 
 /**
@@ -52,9 +50,7 @@ export async function verifyActivity(activityId, approved, rejectionReason, fire
   return api.put(`/api/activities/${activityId}/verify`, {
     approved,
     rejection_reason: rejectionReason
-  }, {
-    headers: { 'X-Firebase-UID': firebaseUid }
-  });
+  }, { 'X-Firebase-UID': firebaseUid });
 }
 
 /**
@@ -64,7 +60,5 @@ export async function verifyActivity(activityId, approved, rejectionReason, fire
  * @returns {Promise<Object>} Deletion result
  */
 export async function deleteActivity(activityId, firebaseUid) {
-  return api.delete(`/api/activities/${activityId}`, {
-    headers: { 'X-Firebase-UID': firebaseUid }
-  });
+  return api.delete(`/api/activities/${activityId}`, { 'X-Firebase-UID': firebaseUid });
 }
