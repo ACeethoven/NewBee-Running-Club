@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Dict
 from decimal import Decimal
-from datetime import datetime, date
+import datetime as dt
+from datetime import datetime
 from enum import Enum
 
 class DonorType(str, Enum):
@@ -15,7 +16,7 @@ class DonorBase(BaseModel):
     donation_event: str = Field(default="General Support", max_length=255)
     amount: Decimal = Field(..., gt=0, decimal_places=2)
     quantity: int = Field(default=1, ge=1)
-    donation_date: Optional[date] = None
+    donation_date: Optional[dt.date] = None
     source: Optional[str] = Field(None, max_length=255)
     receipt_confirmed: bool = Field(default=False)
     notes: Optional[str] = None
@@ -31,7 +32,7 @@ class DonorUpdate(BaseModel):
     donation_event: Optional[str] = Field(None, max_length=255)
     amount: Optional[Decimal] = Field(None, gt=0, decimal_places=2)
     quantity: Optional[int] = Field(None, ge=1)
-    donation_date: Optional[date] = None
+    donation_date: Optional[dt.date] = None
     source: Optional[str] = Field(None, max_length=255)
     receipt_confirmed: Optional[bool] = None
     notes: Optional[str] = None
@@ -59,7 +60,7 @@ class DonorPublicResponse(BaseModel):
     donation_event: str
     amount: Optional[Decimal] = None  # Hidden for individual donors
     quantity: int = 1
-    donation_date: Optional[date] = None
+    donation_date: Optional[dt.date] = None
     message: Optional[str] = None
 
     class Config:
@@ -106,7 +107,7 @@ class MemberBase(BaseModel):
     phone: Optional[str] = Field(None, max_length=20)
     profile_photo_url: Optional[str] = Field(None, max_length=500)
     nyrr_member_id: Optional[str] = Field(None, max_length=50)
-    join_date: Optional[date] = None
+    join_date: Optional[dt.date] = None
     emergency_contact_name: Optional[str] = Field(None, max_length=100)
     emergency_contact_phone: Optional[str] = Field(None, max_length=20)
     show_in_credits: bool = Field(default=True)
@@ -140,7 +141,7 @@ class MemberUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=20)
     profile_photo_url: Optional[str] = Field(None, max_length=500)
     nyrr_member_id: Optional[str] = Field(None, max_length=50)
-    join_date: Optional[date] = None
+    join_date: Optional[dt.date] = None
     registration_credits: Optional[Decimal] = None
     checkin_credits: Optional[Decimal] = None
     volunteer_credits: Optional[Decimal] = None
@@ -231,7 +232,7 @@ class ActivityStatus(str, Enum):
 class MemberActivityBase(BaseModel):
     activity_number: int = Field(..., ge=1, le=2)  # 1 or 2
     event_name: str = Field(..., max_length=255)
-    event_date: date
+    event_date: dt.date
     description: Optional[str] = None
     proof_url: Optional[str] = Field(None, max_length=500)
 
@@ -242,7 +243,7 @@ class MemberActivityCreate(MemberActivityBase):
 
 class MemberActivityUpdate(BaseModel):
     event_name: Optional[str] = Field(None, max_length=255)
-    event_date: Optional[date] = None
+    event_date: Optional[dt.date] = None
     description: Optional[str] = None
     proof_url: Optional[str] = Field(None, max_length=500)
 
@@ -284,19 +285,20 @@ class EventType(str, Enum):
     standard = "standard"  # Regular club events
     heylo = "heylo"        # Heylo-integrated events (weekly runs)
     race = "race"          # Race events
+    general = "General"    # General events (legacy)
 
 
 # Event Schemas
 class EventBase(BaseModel):
     name: str = Field(..., max_length=255)
     chinese_name: Optional[str] = Field(None, max_length=255)
-    date: date
+    date: dt.date
     time: Optional[str] = Field(None, max_length=50)
     location: Optional[str] = Field(None, max_length=255)
     chinese_location: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     chinese_description: Optional[str] = None
-    image: Optional[str] = Field(None, max_length=500)
+    image: Optional[str] = None
     signup_link: Optional[str] = Field(None, max_length=500)
     status: EventStatus = Field(default=EventStatus.upcoming)
     event_type: EventType = Field(default=EventType.standard)
@@ -310,13 +312,13 @@ class EventCreate(EventBase):
 class EventUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     chinese_name: Optional[str] = Field(None, max_length=255)
-    date: Optional[date] = None
+    date: Optional[dt.date] = None
     time: Optional[str] = Field(None, max_length=50)
     location: Optional[str] = Field(None, max_length=255)
     chinese_location: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
     chinese_description: Optional[str] = None
-    image: Optional[str] = Field(None, max_length=500)
+    image: Optional[str] = None
     signup_link: Optional[str] = Field(None, max_length=500)
     status: Optional[EventStatus] = None
     event_type: Optional[EventType] = None
@@ -337,7 +339,7 @@ class EventResponse(EventBase):
 # Meeting Minutes Schemas
 class MeetingMinutesBase(BaseModel):
     title: str = Field(..., max_length=255)
-    meeting_date: date
+    meeting_date: dt.date
     content: str  # HTML content from rich text editor
 
 
@@ -347,7 +349,7 @@ class MeetingMinutesCreate(MeetingMinutesBase):
 
 class MeetingMinutesUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=255)
-    meeting_date: Optional[date] = None
+    meeting_date: Optional[dt.date] = None
     content: Optional[str] = None
 
 
@@ -562,7 +564,7 @@ class CarouselBannerResponse(BaseModel):
     # Event details (populated if source is event)
     event_name: Optional[str] = None
     event_chinese_name: Optional[str] = None
-    event_date: Optional[date] = None
+    event_date: Optional[dt.date] = None
     event_time: Optional[str] = None
     event_location: Optional[str] = None
     event_description: Optional[str] = None

@@ -264,13 +264,18 @@ export default function CalendarPage() {
 
       const eventData = { ...formData, image: imageUrl };
 
+      // Convert empty strings to null for backend validation
+      const cleanedEventData = Object.fromEntries(
+        Object.entries(eventData).map(([key, value]) => [key, value === '' ? null : value])
+      );
+
       if (editingEventId) {
         // Update existing event
-        await updateEvent(editingEventId, eventData, currentUser.uid);
+        await updateEvent(editingEventId, cleanedEventData, currentUser.uid);
         setSnackbar({ open: true, message: 'Event updated successfully / 活动已更新', severity: 'success' });
       } else {
         // Create new event
-        await createEvent(eventData, currentUser.uid);
+        await createEvent(cleanedEventData, currentUser.uid);
         setSnackbar({ open: true, message: 'Event created successfully / 活动已创建', severity: 'success' });
       }
       setEventFormOpen(false);
