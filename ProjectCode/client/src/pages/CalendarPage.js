@@ -5,7 +5,8 @@ import AddIcon from '@mui/icons-material/Add';
 import InfoIcon from '@mui/icons-material/Info';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import EventIcon from '@mui/icons-material/Event';
-import { Alert, Box, Button, Card, CardContent, CardMedia, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Snackbar, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, CardMedia, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, IconButton, MenuItem, Snackbar, Switch, TextField, Tooltip, Typography } from '@mui/material';
+import RepeatIcon from '@mui/icons-material/Repeat';
 import { useEffect, useState, useRef } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import DOMPurify from 'dompurify';
@@ -29,7 +30,15 @@ const initialFormData = {
   signup_link: '',
   status: 'Upcoming',
   event_type: 'standard',
-  heylo_embed: ''
+  heylo_embed: '',
+  // Recurrence fields
+  is_recurring: false,
+  recurrence_type: 'weekly',
+  days_of_week: '',
+  day_of_month: '',
+  week_of_month: '',
+  month_of_year: '',
+  recurrence_end_date: ''
 };
 
 export default function CalendarPage() {
@@ -1300,6 +1309,171 @@ export default function CalendarPage() {
                 helperText="Paste the embed code from Heylo Pro admin panel. The event details will auto-display. / 从Heylo Pro管理面板粘贴嵌入代码，活动详情将自动显示。"
               />
             )}
+
+            {/* Recurrence Section */}
+            <Box sx={{ mt: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <RepeatIcon color="action" />
+                <Typography variant="subtitle1" fontWeight={600}>
+                  Recurring Event / 重复活动
+                </Typography>
+              </Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.is_recurring}
+                    onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
+                  />
+                }
+                label="Enable recurrence / 启用重复"
+              />
+
+              {formData.is_recurring && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+                  <TextField
+                    select
+                    label="Recurrence Type / 重复类型"
+                    value={formData.recurrence_type}
+                    onChange={handleFormChange('recurrence_type')}
+                    fullWidth
+                  >
+                    <MenuItem value="weekly">Weekly / 每周</MenuItem>
+                    <MenuItem value="biweekly">Biweekly / 每两周</MenuItem>
+                    <MenuItem value="monthly">Monthly / 每月</MenuItem>
+                    <MenuItem value="yearly">Yearly / 每年</MenuItem>
+                    <MenuItem value="custom">Custom / 自定义</MenuItem>
+                  </TextField>
+
+                  {/* Days of Week selector for weekly/biweekly */}
+                  {(formData.recurrence_type === 'weekly' || formData.recurrence_type === 'biweekly') && (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        Days of Week / 每周哪几天
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+                          const days = formData.days_of_week ? formData.days_of_week.split(',').map(Number) : [];
+                          const isSelected = days.includes(index);
+                          return (
+                            <Chip
+                              key={day}
+                              label={day}
+                              size="small"
+                              color={isSelected ? 'primary' : 'default'}
+                              onClick={() => {
+                                let newDays;
+                                if (isSelected) {
+                                  newDays = days.filter(d => d !== index);
+                                } else {
+                                  newDays = [...days, index].sort();
+                                }
+                                setFormData({ ...formData, days_of_week: newDays.join(',') });
+                              }}
+                              sx={{ cursor: 'pointer' }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Day of Month selector for monthly */}
+                  {formData.recurrence_type === 'monthly' && (
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        type="number"
+                        label="Day of Month / 每月几号"
+                        value={formData.day_of_month}
+                        onChange={handleFormChange('day_of_month')}
+                        inputProps={{ min: 1, max: 31 }}
+                        sx={{ flex: 1 }}
+                        helperText="1-31 (or leave empty for week-based)"
+                      />
+                      <TextField
+                        select
+                        label="Week of Month / 每月第几周"
+                        value={formData.week_of_month}
+                        onChange={handleFormChange('week_of_month')}
+                        sx={{ flex: 1 }}
+                      >
+                        <MenuItem value="">None</MenuItem>
+                        <MenuItem value="1">1st / 第一周</MenuItem>
+                        <MenuItem value="2">2nd / 第二周</MenuItem>
+                        <MenuItem value="3">3rd / 第三周</MenuItem>
+                        <MenuItem value="4">4th / 第四周</MenuItem>
+                        <MenuItem value="5">Last / 最后一周</MenuItem>
+                      </TextField>
+                    </Box>
+                  )}
+
+                  {/* Yearly recurrence: Month, Week, Day selectors */}
+                  {formData.recurrence_type === 'yearly' && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <TextField
+                        select
+                        label="Month / 月份"
+                        value={formData.month_of_year}
+                        onChange={handleFormChange('month_of_year')}
+                        fullWidth
+                      >
+                        <MenuItem value="1">January / 一月</MenuItem>
+                        <MenuItem value="2">February / 二月</MenuItem>
+                        <MenuItem value="3">March / 三月</MenuItem>
+                        <MenuItem value="4">April / 四月</MenuItem>
+                        <MenuItem value="5">May / 五月</MenuItem>
+                        <MenuItem value="6">June / 六月</MenuItem>
+                        <MenuItem value="7">July / 七月</MenuItem>
+                        <MenuItem value="8">August / 八月</MenuItem>
+                        <MenuItem value="9">September / 九月</MenuItem>
+                        <MenuItem value="10">October / 十月</MenuItem>
+                        <MenuItem value="11">November / 十一月</MenuItem>
+                        <MenuItem value="12">December / 十二月</MenuItem>
+                      </TextField>
+                      <Box sx={{ display: 'flex', gap: 2 }}>
+                        <TextField
+                          select
+                          label="Week / 第几周"
+                          value={formData.week_of_month}
+                          onChange={handleFormChange('week_of_month')}
+                          sx={{ flex: 1 }}
+                        >
+                          <MenuItem value="1">1st / 第一</MenuItem>
+                          <MenuItem value="2">2nd / 第二</MenuItem>
+                          <MenuItem value="3">3rd / 第三</MenuItem>
+                          <MenuItem value="4">4th / 第四</MenuItem>
+                          <MenuItem value="5">Last / 最后</MenuItem>
+                        </TextField>
+                        <TextField
+                          select
+                          label="Day / 星期几"
+                          value={formData.days_of_week}
+                          onChange={handleFormChange('days_of_week')}
+                          sx={{ flex: 1 }}
+                        >
+                          <MenuItem value="0">Sunday / 周日</MenuItem>
+                          <MenuItem value="1">Monday / 周一</MenuItem>
+                          <MenuItem value="2">Tuesday / 周二</MenuItem>
+                          <MenuItem value="3">Wednesday / 周三</MenuItem>
+                          <MenuItem value="4">Thursday / 周四</MenuItem>
+                          <MenuItem value="5">Friday / 周五</MenuItem>
+                          <MenuItem value="6">Saturday / 周六</MenuItem>
+                        </TextField>
+                      </Box>
+                    </Box>
+                  )}
+
+                  <TextField
+                    type="date"
+                    label="End Date (optional) / 结束日期"
+                    value={formData.recurrence_end_date}
+                    onChange={handleFormChange('recurrence_end_date')}
+                    fullWidth
+                    InputLabelProps={{ shrink: true }}
+                    helperText="Leave empty for no end date / 留空表示无结束日期"
+                  />
+                </Box>
+              )}
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
