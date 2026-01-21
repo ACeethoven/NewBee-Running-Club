@@ -495,7 +495,7 @@ export default function CalendarPage() {
           sx={{
             fontWeight: 600,
             color: '#FFA500',
-            mb: 2,
+            mb: { xs: 2, sm: 3 },
             fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
             textAlign: 'center'
           }}
@@ -506,7 +506,7 @@ export default function CalendarPage() {
         </Typography>
 
         {adminModeEnabled && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -525,14 +525,12 @@ export default function CalendarPage() {
           </Box>
         )}
 
-        {!adminModeEnabled && <Box sx={{ mb: 3 }} />}
-
         <Grid container spacing={3}>
           {featuredEvents.map((event) => (
             <Grid item xs={12} md={4} key={event.id}>
               <Card
                 sx={{
-                  height: { xs: 'auto', md: '420px' },
+                  height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
                   cursor: 'pointer',
@@ -590,23 +588,14 @@ export default function CalendarPage() {
                   onError={handleImageError}
                   sx={{
                     objectFit: 'cover',
-                    backgroundColor: '#f5f5f5',
-                    flexShrink: 0
+                    backgroundColor: '#f5f5f5'
                   }}
                 />
-                <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Typography gutterBottom variant="h6" component="div" sx={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography gutterBottom variant="h6" component="div">
                     {event.title}
                   </Typography>
-                  <Typography gutterBottom variant="subtitle1" color="text.secondary" sx={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
+                  <Typography gutterBottom variant="subtitle1" color="text.secondary">
                     {event.chineseTitle}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{
@@ -630,8 +619,7 @@ export default function CalendarPage() {
                       py: 1.5,
                       borderRadius: '12px',
                       border: '2px solid #FFB84D',
-                      alignSelf: 'flex-start',
-                      mt: 'auto',
+                      mt: 2,
                       '&:hover': {
                         backgroundColor: '#FFA833',
                         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
@@ -919,14 +907,8 @@ export default function CalendarPage() {
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   {event.location}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom sx={{ display: { xs: 'none', sm: 'block' } }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
                   {event.chineseLocation}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1, display: { xs: 'none', sm: 'block' } }}>
-                  {event.description}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                  {event.chineseDescription}
                 </Typography>
               </Box>
             </Card>

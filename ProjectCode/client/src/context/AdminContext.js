@@ -91,6 +91,9 @@ export function AdminProvider({ children }) {
 
   // Sync admin mode state to localStorage whenever it changes
   useEffect(() => {
+    // Don't sync until admin status check is complete
+    if (loading) return;
+
     // Only persist if user is an admin, otherwise clear storage
     if (isAdmin) {
       setStoredAdminMode(adminModeEnabled);
@@ -100,7 +103,7 @@ export function AdminProvider({ children }) {
       setAdminModeEnabled(false);
       setStoredAdminMode(false);
     }
-  }, [adminModeEnabled, isAdmin]);
+  }, [adminModeEnabled, isAdmin, loading]);
 
   const toggleAdminMode = () => {
     if (isAdmin) {
