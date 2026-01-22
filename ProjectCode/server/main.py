@@ -297,9 +297,9 @@ def get_member_race_results(
                     race_year = result.race_time.year
                     calculated_birth_year = race_year - result_age
 
-                    # Match if gender matches AND calculated birth year is within ±1 year
-                    # (±1 tolerance because age depends on whether birthday passed before race date)
-                    if result_gender == gender and abs(calculated_birth_year - birth_year) <= 1:
+                    # Match if gender matches AND calculated birth year is exact or +1 year
+                    # (+1 tolerance because if birthday hasn't passed yet, age is 1 less → calc birth year is 1 more)
+                    if result_gender == gender and calculated_birth_year in (birth_year, birth_year + 1):
                         filtered_results.append(result)
         results = filtered_results
 
