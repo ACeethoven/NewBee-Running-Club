@@ -291,23 +291,10 @@ const ProfilePage = () => {
     if (!distance) return 0;
     const d = distance.toLowerCase().trim();
 
-    // Common race distances mapping to meters
-    const distanceMap = {
-      'marathon': 42195,
-      'half marathon': 21097.5,
-      'half': 21097.5,
-      '5k': 5000,
-      '10k': 10000,
-      '15k': 15000,
-      '20k': 20000,
-      '25k': 25000,
-      '30k': 30000,
-    };
-
-    // Check exact matches first
-    for (const [key, meters] of Object.entries(distanceMap)) {
-      if (d === key || d.includes(key)) return meters;
-    }
+    // Check specific patterns in order (more specific first!)
+    // Half marathon must be checked BEFORE marathon
+    if (d.includes('half marathon') || d === 'half') return 21097.5;
+    if (d === 'marathon' || (d.includes('marathon') && !d.includes('half'))) return 42195;
 
     // Handle "X Mile" or "X Miles" format
     const mileMatch = d.match(/(\d+\.?\d*)\s*mile/i);
@@ -315,15 +302,23 @@ const ProfilePage = () => {
       return parseFloat(mileMatch[1]) * 1609.34;
     }
 
+    // Handle K distances: 5K, 10K, etc.
+    if (d.includes('5k')) return 5000;
+    if (d.includes('10k')) return 10000;
+    if (d.includes('15k')) return 15000;
+    if (d.includes('20k')) return 20000;
+    if (d.includes('25k')) return 25000;
+    if (d.includes('30k')) return 30000;
+
     // Handle "X K" or "X km" format
     const kmMatch = d.match(/(\d+\.?\d*)\s*k(?:m)?(?:\s|$)/i);
     if (kmMatch) {
       return parseFloat(kmMatch[1]) * 1000;
     }
 
-    // Handle "X M" or "X meter" format
+    // Handle "X M" or "X meter" format (but not "X Mile")
     const meterMatch = d.match(/(\d+\.?\d*)\s*m(?:eter)?(?:s)?(?:\s|$)/i);
-    if (meterMatch) {
+    if (meterMatch && !d.includes('mile') && !d.includes('marathon')) {
       return parseFloat(meterMatch[1]);
     }
 
