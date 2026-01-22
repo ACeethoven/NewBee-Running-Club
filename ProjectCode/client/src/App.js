@@ -9,6 +9,7 @@ import { AuthProvider, AdminProvider } from "./context";
 import AboutPage from "./pages/AboutPage";
 import AdminPanelPage from "./pages/AdminPanelPage";
 import CalendarPage from "./pages/CalendarPage";
+import GalleryPage from "./pages/GalleryPage";
 import HighlightsPage from "./pages/HighlightsPage";
 import HomePage from "./pages/HomePage";
 import JoinPage from "./pages/JoinPage";
@@ -66,6 +67,8 @@ export default function App() {
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/admin" element={<AdminPanelPage />} />
+                {/* Gallery Route */}
+                <Route path="/events/:eventId/gallery" element={<GalleryPage />} />
               </Routes>
             </Box>
 

@@ -14,9 +14,13 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
   Grid,
   IconButton,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Skeleton,
   Table,
   TableBody,
@@ -125,7 +129,11 @@ const ProfilePage = () => {
         setLoadingRaces(true);
         try {
           const searchKey = response.nyrr_member_id || response.display_name;
-          const raceResponse = await getMemberRaceResults(searchKey);
+          // Pass gender and birth_year for more accurate matching
+          const options = {};
+          if (response.gender) options.gender = response.gender;
+          if (response.birth_year) options.birth_year = response.birth_year;
+          const raceResponse = await getMemberRaceResults(searchKey, options);
           setRaceData(raceResponse);
         } catch (raceErr) {
           console.error('Failed to fetch race results:', raceErr);
@@ -225,6 +233,8 @@ const ProfilePage = () => {
       display_name_cn: memberData?.display_name_cn || '',
       email: memberData?.email || currentUser?.email || '',
       phone: memberData?.phone || '',
+      gender: memberData?.gender || '',
+      birth_year: memberData?.birth_year || '',
       nyrr_member_id: memberData?.nyrr_member_id || '',
       emergency_contact_name: memberData?.emergency_contact_name || '',
       emergency_contact_phone: memberData?.emergency_contact_phone || '',
@@ -424,6 +434,17 @@ const ProfilePage = () => {
                 <Typography variant="body1">{memberData.nyrr_member_id || '-'}</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Gender / 性别</Typography>
+                <Typography variant="body1">
+                  {memberData.gender === 'M' ? 'Male / 男' :
+                   memberData.gender === 'F' ? 'Female / 女' : '-'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Birth Year / 出生年份</Typography>
+                <Typography variant="body1">{memberData.birth_year || '-'}</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
                 <Typography variant="caption" color="text.secondary">Join Date / 加入日期</Typography>
                 <Typography variant="body1">{memberData.join_date || '-'}</Typography>
               </Grid>
@@ -532,7 +553,7 @@ const ProfilePage = () => {
                 {loadingRaces ? <CircularProgress size={24} /> : Object.keys(raceData.stats.prs).length}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Personal Records / 个人记录
+                NYRR Personal Records / 纽约路跑协会个人最佳
               </Typography>
             </CardContent>
           </Card>
@@ -556,7 +577,7 @@ const ProfilePage = () => {
       {Object.keys(raceData.stats.prs).length > 0 && (
         <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
           <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TrophyIcon color="warning" /> Personal Records / 个人最佳成绩
+            <TrophyIcon color="warning" /> NYRR Personal Records / 纽约路跑协会比赛个人最佳
           </Typography>
           <Grid container spacing={2}>
             {Object.entries(raceData.stats.prs).map(([distance, pr]) => (
@@ -713,6 +734,42 @@ const ProfilePage = () => {
                 onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.nyrr_member_id}
                 helperText="Your NYRR account ID for race results"
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1, mt: 2 }}>
+                Race Record Matching / 比赛记录匹配
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Gender and birth year are used to accurately match your race results
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Gender / 性别</InputLabel>
+                <Select
+                  value={editFormData.gender || ''}
+                  onChange={handleEditFormChange('gender')}
+                  label="Gender / 性别"
+                >
+                  <MenuItem value="">Not specified</MenuItem>
+                  <MenuItem value="M">Male / 男</MenuItem>
+                  <MenuItem value="F">Female / 女</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Birth Year / 出生年份"
+                value={editFormData.birth_year || ''}
+                onChange={handleEditFormChange('birth_year')}
+                placeholder="e.g., 1990"
+                inputProps={{ min: 1900, max: 2020 }}
+                helperText="Used to calculate age category for race matching"
               />
             </Grid>
 

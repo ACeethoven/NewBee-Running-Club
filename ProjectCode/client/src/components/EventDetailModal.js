@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -9,6 +10,7 @@ import {
   Divider,
   CircularProgress
 } from '@mui/material';
+import CollectionsIcon from '@mui/icons-material/Collections';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
 import { getEventEngagement } from '../api';
@@ -16,8 +18,10 @@ import LikeButton from './LikeButton';
 import ReactionPicker from './ReactionPicker';
 import CommentSection from './CommentSection';
 import AdminModerationPanel from './AdminModerationPanel';
+import EventGalleryPreview from './EventGalleryPreview';
 
 export default function EventDetailModal({ event, onClose }) {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { adminModeEnabled } = useAdmin();
   const [engagement, setEngagement] = useState(null);
@@ -211,6 +215,31 @@ export default function EventDetailModal({ event, onClose }) {
                   onSettingsUpdate={handleSettingsUpdate}
                 />
               )}
+
+              {/* Gallery Section */}
+              <Box sx={{ mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CollectionsIcon sx={{ color: 'text.secondary' }} />
+                    <Typography variant="subtitle1" fontWeight={600}>
+                      Photos / 相册
+                    </Typography>
+                  </Box>
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      onClose();
+                      navigate(`/events/${event.id}/gallery`);
+                    }}
+                    sx={{ textTransform: 'none', color: '#FFB84D' }}
+                  >
+                    View All
+                  </Button>
+                </Box>
+                <EventGalleryPreview eventId={event.id} maxImages={5} size={56} />
+              </Box>
+
+              <Divider sx={{ mb: 3 }} />
 
               {/* Comments Section */}
               <CommentSection

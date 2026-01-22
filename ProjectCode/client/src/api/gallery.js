@@ -1,0 +1,228 @@
+/**
+ * Gallery API client
+ * Handles all gallery-related API calls (event photo galleries)
+ */
+
+import { api } from './client';
+import { getAnonymousId } from './engagement';
+
+// GALLERY IMAGE ENDPOINTS
+
+/**
+ * Get all gallery images for an event
+ * @param {number} eventId - Event ID
+ * @param {string|null} firebaseUid - Optional Firebase UID for logged-in check
+ * @returns {Promise<Array>} - List of gallery images
+ */
+export const getEventGallery = async (eventId, firebaseUid = null) => {
+  const params = firebaseUid ? {} : { anonymous_id: getAnonymousId() };
+  const headers = firebaseUid ? { 'X-Firebase-UID': firebaseUid } : {};
+  return api.get(`/api/events/${eventId}/gallery`, params, headers);
+};
+
+/**
+ * Get gallery preview for an event (first N images with count)
+ * @param {number} eventId - Event ID
+ * @param {number} limit - Number of images to fetch (default 5)
+ * @param {string|null} firebaseUid - Optional Firebase UID
+ * @returns {Promise<Object>} - Preview data with images, total_count, has_more
+ */
+export const getEventGalleryPreview = async (eventId, limit = 5, firebaseUid = null) => {
+  const params = firebaseUid
+    ? { limit }
+    : { limit, anonymous_id: getAnonymousId() };
+  const headers = firebaseUid ? { 'X-Firebase-UID': firebaseUid } : {};
+  return api.get(`/api/events/${eventId}/gallery/preview`, params, headers);
+};
+
+/**
+ * Get gallery previews for multiple events in a single request
+ * @param {Array<number>} eventIds - Event IDs
+ * @param {string|null} firebaseUid - Optional Firebase UID
+ * @returns {Promise<Object>} - Map of event_id to preview data
+ */
+export const getBatchGalleryPreview = async (eventIds, firebaseUid = null) => {
+  const body = firebaseUid
+    ? { event_ids: eventIds }
+    : { event_ids: eventIds, anonymous_id: getAnonymousId() };
+  const headers = firebaseUid ? { 'X-Firebase-UID': firebaseUid } : {};
+  return api.post('/api/events/gallery/batch-preview', body, headers);
+};
+
+/**
+ * Upload a new image to event gallery
+ * @param {number} eventId - Event ID
+ * @param {Object} imageData - { image_url, caption?, caption_cn? }
+ * @param {string|null} firebaseUid - User's Firebase UID (optional but recommended)
+ * @returns {Promise<Object>} - Created gallery image
+ */
+export const uploadGalleryImage = async (eventId, imageData, firebaseUid = null) => {
+  const headers = firebaseUid ? { 'X-Firebase-UID': firebaseUid } : {};
+  return api.post(`/api/events/${eventId}/gallery`, imageData, headers);
+};
+
+/**
+ * Update a gallery image (admin only)
+ * @param {number} imageId - Gallery image ID
+ * @param {Object} updateData - Fields to update
+ * @param {string} firebaseUid - Admin's Firebase UID
+ * @returns {Promise<Object>} - Updated gallery image
+ */
+export const updateGalleryImage = async (imageId, updateData, firebaseUid) => {
+  return api.put(`/api/gallery/${imageId}`, updateData, {
+    'X-Firebase-UID': firebaseUid,
+  });
+};
+
+/**
+ * Delete a gallery image (uploader or admin only)
+ * @param {number} imageId - Gallery image ID
+ * @param {string} firebaseUid - User's Firebase UID
+ * @returns {Promise<Object>} - Deletion confirmation
+ */
+export const deleteGalleryImage = async (imageId, firebaseUid) => {
+  return api.delete(`/api/gallery/${imageId}`, {
+    'X-Firebase-UID': firebaseUid,
+  });
+};
+
+/**
+ * Toggle like on a gallery image
+ * @param {number} imageId - Gallery image ID
+ * @param {string|null} firebaseUid - Optional Firebase UID for logged-in users
+ * @returns {Promise<Object>} - Updated like count and user_liked status
+ */
+export const toggleGalleryImageLike = async (imageId, firebaseUid = null) => {
+  const params = firebaseUid ? {} : { anonymous_id: getAnonymousId() };
+  const headers = firebaseUid ? { 'X-Firebase-UID': firebaseUid } : {};
+  return api.post(`/api/gallery/${imageId}/likes?${new URLSearchParams(params)}`, {}, headers);
+};
+
+// UTILITY FUNCTIONS
+
+/**
+ * Convert a File to base64 data URL
+ * @param {File} file - Image file
+ * @returns {Promise<string>} - Base64 data URL
+ */
+export const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (error) => reject(error);
+  });
+};
+
+/**
+ * Compress an image file before upload
+ * @param {File} file - Original image file
+ * @param {number} maxWidth - Maximum width (default 1200px)
+ * @param {number} quality - JPEG quality 0-1 (default 0.8)
+ * @returns {Promise<string>} - Compressed base64 data URL
+ */
+export const compressImage = (file, maxWidth = 1200, quality = 0.8) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
+
+/**
+ * Download an image from a URL or data URL
+ * @param {string} imageUrl - Image URL or data URL
+ * @param {string} filename - Filename for download
+ */
+export const downloadImage = async (imageUrl, filename = 'gallery-image.jpg') => {
+  try {
+    let blob;
+
+    if (imageUrl.startsWith('data:')) {
+      // Convert base64 data URL to Blob for reliable download
+      const response = await fetch(imageUrl);
+      blob = await response.blob();
+    } else {
+      // For regular URLs, fetch the image
+      const response = await fetch(imageUrl, { mode: 'cors' });
+      blob = await response.blob();
+    }
+
+    // Create object URL and download
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Clean up object URL
+    URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error('Download failed:', error);
+    // Fallback to simple anchor method
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
+/**
+ * Share an image URL using Web Share API or fallback to clipboard
+ * @param {string} imageUrl - Image URL to share
+ * @param {string} title - Share title
+ * @returns {Promise<boolean>} - Whether share was successful
+ */
+export const shareImage = async (imageUrl, title = 'Check out this photo!') => {
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title,
+        url: imageUrl,
+      });
+      return true;
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Share failed:', err);
+      }
+      return false;
+    }
+  } else {
+    // Fallback to clipboard
+    try {
+      await navigator.clipboard.writeText(imageUrl);
+      return true;
+    } catch (err) {
+      console.error('Clipboard copy failed:', err);
+      return false;
+    }
+  }
+};

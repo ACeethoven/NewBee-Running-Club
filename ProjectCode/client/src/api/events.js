@@ -69,3 +69,61 @@ export const deleteEvent = async (eventId, firebaseUid) => {
     'X-Firebase-UID': firebaseUid,
   });
 };
+
+/**
+ * Get all events in a recurring series
+ * @param {number} eventId - Event ID (can be parent or child)
+ * @returns {Promise<Array>} - List of events in the series
+ */
+export const getEventSeries = async (eventId) => {
+  return api.get(`/api/events/${eventId}/series`);
+};
+
+/**
+ * Add an existing event to a recurring series (admin only)
+ * @param {number} eventId - Event ID to add
+ * @param {number} parentId - Parent event ID (series)
+ * @param {string} firebaseUid - Admin's Firebase UID for authentication
+ * @returns {Promise<Object>} - Success message
+ */
+export const addEventToSeries = async (eventId, parentId, firebaseUid) => {
+  return api.post(`/api/events/${eventId}/add-to-series/${parentId}`, {}, {
+    'X-Firebase-UID': firebaseUid,
+  });
+};
+
+/**
+ * Toggle an event as a series parent (admin only)
+ * @param {number} eventId - Event ID to toggle
+ * @param {string} firebaseUid - Admin's Firebase UID for authentication
+ * @returns {Promise<Object>} - Result with is_recurring status
+ */
+export const toggleSeriesParent = async (eventId, firebaseUid) => {
+  return api.post(`/api/events/${eventId}/toggle-series-parent`, {}, {
+    'X-Firebase-UID': firebaseUid,
+  });
+};
+
+/**
+ * Dissolve a series - unlink all children (admin only)
+ * @param {number} eventId - Parent event ID
+ * @param {string} firebaseUid - Admin's Firebase UID for authentication
+ * @returns {Promise<Object>} - Result message
+ */
+export const dissolveSeries = async (eventId, firebaseUid) => {
+  return api.post(`/api/events/${eventId}/dissolve-series`, {}, {
+    'X-Firebase-UID': firebaseUid,
+  });
+};
+
+/**
+ * Remove an event from its series (admin only)
+ * @param {number} eventId - Event ID to remove
+ * @param {string} firebaseUid - Admin's Firebase UID for authentication
+ * @returns {Promise<Object>} - Result message
+ */
+export const removeEventFromSeries = async (eventId, firebaseUid) => {
+  return api.post(`/api/events/${eventId}/remove-from-series`, {}, {
+    'X-Firebase-UID': firebaseUid,
+  });
+};

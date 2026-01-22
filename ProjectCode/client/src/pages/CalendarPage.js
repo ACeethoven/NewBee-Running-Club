@@ -497,7 +497,7 @@ export default function CalendarPage() {
         </Container>
       )}
 
-      {/* Featured Events Section */}
+      {/* Upcoming Events Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 4 }}>
         <Typography
           variant="h4"
@@ -509,9 +509,9 @@ export default function CalendarPage() {
             textAlign: 'center'
           }}
         >
-          Featured Events
+          Upcoming Events
           <br />
-          精选活动
+          即将举行的活动
         </Typography>
 
         {adminModeEnabled && (
@@ -649,7 +649,7 @@ export default function CalendarPage() {
         </Grid>
       </Container>
 
-      {/* Upcoming Events Section */}
+      {/* Event Calendar Section */}
       <Container maxWidth="xl" sx={{ px: 2, mt: 6 }}>
         <Typography
           variant="h4"
@@ -661,9 +661,9 @@ export default function CalendarPage() {
             textAlign: 'center'
           }}
         >
-          Upcoming Events
+          Event Calendar
           <br />
-          即将举行的活动
+          活动日历
         </Typography>
 
         {/* Filters */}

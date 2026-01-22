@@ -13,3 +13,5 @@ requests
 aiosmtplib
 email-validator
 python-multipart
+apscheduler
+python-dateutil

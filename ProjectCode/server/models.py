@@ -106,6 +106,8 @@ class MemberBase(BaseModel):
     display_name_cn: Optional[str] = Field(None, max_length=100)
     phone: Optional[str] = Field(None, max_length=20)
     profile_photo_url: Optional[str] = Field(None, max_length=500)
+    gender: Optional[str] = Field(None, max_length=1)  # "M" or "F"
+    birth_year: Optional[int] = Field(None, ge=1900, le=2020)
     nyrr_member_id: Optional[str] = Field(None, max_length=50)
     join_date: Optional[dt.date] = None
     emergency_contact_name: Optional[str] = Field(None, max_length=100)
@@ -140,6 +142,8 @@ class MemberUpdate(BaseModel):
     display_name_cn: Optional[str] = Field(None, max_length=100)
     phone: Optional[str] = Field(None, max_length=20)
     profile_photo_url: Optional[str] = Field(None, max_length=500)
+    gender: Optional[str] = Field(None, max_length=1)  # "M" or "F"
+    birth_year: Optional[int] = Field(None, ge=1900, le=2020)
     nyrr_member_id: Optional[str] = Field(None, max_length=50)
     join_date: Optional[dt.date] = None
     registration_credits: Optional[Decimal] = None
@@ -323,12 +327,18 @@ class EventUpdate(BaseModel):
     status: Optional[EventStatus] = None
     event_type: Optional[EventType] = None
     heylo_embed: Optional[str] = None
+    # Recurrence fields
+    is_recurring: Optional[bool] = None
 
 
 class EventResponse(EventBase):
     id: int
     event_type: str = "standard"
     heylo_embed: Optional[str] = None
+    # Recurrence fields
+    is_recurring: bool = False
+    parent_event_id: Optional[int] = None
+    next_occurrence_date: Optional[dt.date] = None
     created_at: datetime
     updated_at: datetime
 
@@ -687,3 +697,123 @@ class TrainingTipUpvoteResponse(BaseModel):
     tip_id: int
     upvotes: int
     user_upvoted: bool
+
+
+# ========== Event Gallery Schemas ==========
+
+class EventGalleryImageBase(BaseModel):
+    caption: Optional[str] = Field(None, max_length=500)
+    caption_cn: Optional[str] = Field(None, max_length=500)
+    display_order: int = Field(default=0)
+
+
+class EventGalleryImageCreate(EventGalleryImageBase):
+    image_url: str  # Base64 data URL or external URL
+
+
+class EventGalleryImageUpdate(BaseModel):
+    caption: Optional[str] = Field(None, max_length=500)
+    caption_cn: Optional[str] = Field(None, max_length=500)
+    display_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class EventGalleryImageResponse(EventGalleryImageBase):
+    id: int
+    event_id: int
+    image_url: str
+    is_active: bool = True
+    uploaded_by_id: Optional[int] = None
+    uploaded_by_name: Optional[str] = None
+    like_count: int = 0
+    user_liked: bool = False  # Populated based on requesting user
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class EventGalleryPreviewResponse(BaseModel):
+    """Lightweight response for card previews"""
+    images: List[EventGalleryImageResponse]
+    total_count: int
+    has_more: bool
+
+
+class EventGalleryImageLikeResponse(BaseModel):
+    image_id: int
+    like_count: int
+    user_liked: bool
+
+
+class BatchGalleryPreviewRequest(BaseModel):
+    event_ids: List[int]
+    anonymous_id: Optional[str] = None
+
+
+class BatchGalleryPreviewResponse(BaseModel):
+    previews: Dict[int, EventGalleryPreviewResponse]
+
+
+# ========== Event Recurrence Schemas ==========
+
+class RecurrenceType(str, Enum):
+    weekly = "weekly"
+    biweekly = "biweekly"
+    monthly = "monthly"
+    yearly = "yearly"
+    custom = "custom"
+
+
+class EventRecurrenceRuleBase(BaseModel):
+    recurrence_type: RecurrenceType
+    days_of_week: Optional[str] = None  # "0,1,2" for Sun,Mon,Tue
+    day_of_month: Optional[int] = Field(None, ge=1, le=31)
+    week_of_month: Optional[int] = Field(None, ge=1, le=5)  # 5 = last
+    month_of_year: Optional[int] = Field(None, ge=1, le=12)
+    custom_rule: Optional[str] = None  # JSON for complex rules
+    end_date: Optional[dt.date] = None
+    max_occurrences: Optional[int] = None
+
+
+class EventRecurrenceRuleCreate(EventRecurrenceRuleBase):
+    pass
+
+
+class EventRecurrenceRuleUpdate(BaseModel):
+    recurrence_type: Optional[RecurrenceType] = None
+    days_of_week: Optional[str] = None
+    day_of_month: Optional[int] = Field(None, ge=1, le=31)
+    week_of_month: Optional[int] = Field(None, ge=1, le=5)
+    month_of_year: Optional[int] = Field(None, ge=1, le=12)
+    custom_rule: Optional[str] = None
+    end_date: Optional[dt.date] = None
+    max_occurrences: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class EventRecurrenceRuleResponse(EventRecurrenceRuleBase):
+    id: int
+    event_id: int
+    occurrences_created: int = 0
+    last_generated_date: Optional[dt.date] = None
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Extended Event schemas with recurrence support
+class EventWithRecurrence(EventResponse):
+    is_recurring: bool = False
+    parent_event_id: Optional[int] = None
+    next_occurrence_date: Optional[dt.date] = None
+    recurrence: Optional[EventRecurrenceRuleResponse] = None
+
+
+class EventCreateWithRecurrence(EventCreate):
+    is_recurring: bool = False
+    recurrence: Optional[EventRecurrenceRuleCreate] = None

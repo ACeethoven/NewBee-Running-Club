@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, Index, Time, Date, Enum, ForeignKey, UniqueConstraint
 from sqlalchemy.types import DECIMAL
+from sqlalchemy.dialects.mysql import LONGTEXT
 import enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -150,6 +151,8 @@ class Member(Base):
     display_name_cn = Column(String(100))
     phone = Column(String(20))
     profile_photo_url = Column(String(500))
+    gender = Column(String(1))  # "M" or "F" for race record matching
+    birth_year = Column(Integer)  # e.g., 1985 for calculating gender_age
 
     # Club Data
     nyrr_member_id = Column(String(50))
@@ -271,14 +274,24 @@ class Event(Base):
     event_type = Column(String(20), default='standard')  # 'standard', 'heylo', 'race'
     heylo_embed = Column(Text)  # Stores Heylo embed code snippet for heylo event type
 
+    # Recurrence fields
+    is_recurring = Column(Boolean, default=False)
+    parent_event_id = Column(Integer, ForeignKey('events.id', ondelete='SET NULL'))
+    next_occurrence_date = Column(Date)  # For scheduler efficiency
+
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Self-referential relationship for recurring instances
+    parent_event = relationship("Event", remote_side="Event.id", backref="recurring_instances")
 
     # Indexes for better query performance
     __table_args__ = (
         Index('idx_event_status', 'status'),
         Index('idx_event_date', 'date'),
         Index('idx_event_type', 'event_type'),
+        Index('idx_event_is_recurring', 'is_recurring'),
+        Index('idx_event_parent_id', 'parent_event_id'),
     )
 
 
@@ -521,6 +534,92 @@ class TrainingTipUpvote(Base):
         Index('idx_upvote_tip_id', 'tip_id'),
         UniqueConstraint('tip_id', 'member_id', name='uq_upvote_tip_member'),
         UniqueConstraint('tip_id', 'anonymous_id', name='uq_upvote_tip_anonymous'),
+    )
+
+
+# Event Gallery Image Model for event photo galleries
+class EventGalleryImage(Base):
+    __tablename__ = "event_gallery_images"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    image_url = Column(Text().with_variant(LONGTEXT(), 'mysql'), nullable=False)  # Base64 data URL - LONGTEXT for MySQL (up to 4GB)
+    caption = Column(String(500))
+    caption_cn = Column(String(500))
+    display_order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    uploaded_by_id = Column(Integer, ForeignKey('members.id', ondelete='SET NULL'))
+    uploaded_by_name = Column(String(100))
+    like_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    event = relationship("Event", backref="gallery_images")
+    uploaded_by = relationship("Member", backref="uploaded_gallery_images")
+
+    __table_args__ = (
+        Index('idx_gallery_event_id', 'event_id'),
+        Index('idx_gallery_display_order', 'display_order'),
+        Index('idx_gallery_is_active', 'is_active'),
+    )
+
+
+# Event Gallery Image Like Model for tracking likes on gallery images
+class EventGalleryImageLike(Base):
+    __tablename__ = "event_gallery_image_likes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    image_id = Column(Integer, ForeignKey('event_gallery_images.id', ondelete='CASCADE'), nullable=False)
+    member_id = Column(Integer, ForeignKey('members.id', ondelete='CASCADE'), nullable=True)
+    firebase_uid = Column(String(128))
+    anonymous_id = Column(String(128))  # For non-logged-in users
+    created_at = Column(DateTime, default=func.now())
+
+    # Relationships
+    image = relationship("EventGalleryImage", backref="likes")
+    member = relationship("Member", backref="gallery_image_likes")
+
+    __table_args__ = (
+        Index('idx_gallery_like_image_id', 'image_id'),
+        UniqueConstraint('image_id', 'member_id', name='uq_gallery_like_image_member'),
+        UniqueConstraint('image_id', 'anonymous_id', name='uq_gallery_like_image_anonymous'),
+    )
+
+
+# Event Recurrence Rule Model for recurring events
+class EventRecurrenceRule(Base):
+    __tablename__ = "event_recurrence_rules"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey('events.id', ondelete='CASCADE'), unique=True, nullable=False)
+    recurrence_type = Column(String(50), nullable=False)  # 'weekly', 'biweekly', 'monthly', 'yearly', 'custom'
+    # weekly/biweekly: which days (0=Sun, 1=Mon, ..., 6=Sat)
+    days_of_week = Column(String(50))  # "0,1,2" for Sun,Mon,Tue
+    # monthly: which day/week
+    day_of_month = Column(Integer)  # 1-31, or null for week-based
+    week_of_month = Column(Integer)  # 1-5 (5 = last)
+    # yearly: month + day or month + week + weekday
+    month_of_year = Column(Integer)  # 1-12
+    # custom patterns
+    custom_rule = Column(Text)  # JSON for complex rules
+    # limits
+    end_date = Column(Date)
+    max_occurrences = Column(Integer)
+    occurrences_created = Column(Integer, default=0)
+    # tracking
+    last_generated_date = Column(Date)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationship
+    event = relationship("Event", backref="recurrence_rule")
+
+    __table_args__ = (
+        Index('idx_recurrence_event_id', 'event_id'),
+        Index('idx_recurrence_type', 'recurrence_type'),
+        Index('idx_recurrence_is_active', 'is_active'),
     )
 
 

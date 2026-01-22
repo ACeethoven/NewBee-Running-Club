@@ -358,9 +358,9 @@ export default function RecordsPage() {
             textAlign: 'center'
           }}
         >
-          Club Records
+          NYRR Club Records
           <br />
-          俱乐部记录
+          NYRR俱乐部记录
         </Typography>
 
         {/* Year Filter */}
@@ -557,9 +557,9 @@ export default function RecordsPage() {
             textAlign: 'center'
           }}
         >
-          Club Credits
+          Current Year Club Credit
           <br />
-          俱乐部积分榜
+          本年度俱乐部积分
         </Typography>
 
         {/* Credits Tabs */}

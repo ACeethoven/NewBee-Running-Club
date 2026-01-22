@@ -10,7 +10,7 @@ import uuid
 import base64
 from pathlib import Path
 
-from database import get_db, create_tables, Donor, Results, Member, Event, MeetingMinutes, Comment, Like, Reaction, EventCommentSettings, TempClubCredit, BannerImage, TrainingTip, TrainingTipUpvote, HomepageSection, MemberActivity
+from database import get_db, create_tables, Donor, Results, Member, Event, MeetingMinutes, Comment, Like, Reaction, EventCommentSettings, TempClubCredit, BannerImage, TrainingTip, TrainingTipUpvote, HomepageSection, MemberActivity, EventGalleryImage, EventGalleryImageLike, EventRecurrenceRule
 from models import (
     DonorCreate, DonorUpdate, DonorResponse, DonorsListResponse, DonationSummary,
     DonorPublicResponse, DonorLinkMemberRequest,
@@ -27,7 +27,9 @@ from models import (
     TempClubCreditCreate, TempClubCreditUpdate, TempClubCreditResponse, CreditType,
     BannerImageCreate, BannerImageUpdate, BannerImageResponse, CarouselBannerResponse,
     TrainingTipCreate, TrainingTipUpdate, TrainingTipResponse, TrainingTipPublicResponse, TrainingTipUpvoteResponse, TipStatus, TipCategory,
-    HomepageSectionCreate, HomepageSectionUpdate, HomepageSectionResponse, SectionReorderRequest
+    HomepageSectionCreate, HomepageSectionUpdate, HomepageSectionResponse, SectionReorderRequest,
+    EventGalleryImageCreate, EventGalleryImageUpdate, EventGalleryImageResponse, EventGalleryPreviewResponse, EventGalleryImageLikeResponse, BatchGalleryPreviewRequest, BatchGalleryPreviewResponse,
+    EventRecurrenceRuleCreate, EventRecurrenceRuleUpdate, EventRecurrenceRuleResponse, RecurrenceType, EventWithRecurrence, EventCreateWithRecurrence
 )
 from email_service import EmailService
 import bcrypt
@@ -53,10 +55,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create database tables on startup
+# Import scheduler for recurring events
+from scheduler import start_scheduler, shutdown_scheduler
+
+# Create database tables on startup and start scheduler
 @app.on_event("startup")
 def startup_event():
     create_tables()
+    # Start the background scheduler for recurring events
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    # Gracefully shutdown the scheduler
+    shutdown_scheduler()
 
 
 # Authorization dependency for admin-only endpoints
@@ -249,15 +262,38 @@ def get_all_races(db: Session = Depends(get_db)):
 
 
 @app.get("/api/results/member/{search_key}")
-def get_member_race_results(search_key: str, db: Session = Depends(get_db)):
+def get_member_race_results(
+    search_key: str,
+    gender: str = None,
+    birth_year: int = None,
+    db: Session = Depends(get_db)
+):
     """
-    Get race results for a specific member by name or NYRR ID.
+    Get race results for a specific member by name.
     Returns all results matching the search key along with statistics.
+
+    Uses exact matching on name + gender_age (calculated from birth_year)
+    to accurately identify the runner's records.
     """
-    # Search by name (case-insensitive partial match)
+    # Search by exact name match (case-insensitive)
     results = db.query(Results).filter(
-        Results.name.ilike(f"%{search_key}%")
+        Results.name.ilike(search_key)
     ).order_by(Results.race_time.desc()).all()
+
+    # If gender and birth_year provided, filter by calculated gender_age
+    if gender and birth_year:
+        filtered_results = []
+        for result in results:
+            if result.race_time and result.gender_age:
+                # Calculate expected gender_age at the time of the race
+                race_year = result.race_time.year
+                expected_age = race_year - birth_year
+                expected_gender_age = f"{gender}{expected_age}"
+
+                # Match if gender_age matches expected (exact match)
+                if result.gender_age == expected_gender_age:
+                    filtered_results.append(result)
+        results = filtered_results
 
     if not results:
         return {
@@ -2649,6 +2685,786 @@ def toggle_tip_upvote(
         upvotes=tip.upvotes,
         user_upvoted=user_upvoted
     )
+
+
+# EVENT GALLERY ENDPOINTS
+
+@app.get("/api/events/{event_id}/gallery", response_model=List[EventGalleryImageResponse])
+def get_event_gallery(
+    event_id: int,
+    anonymous_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_member: Optional[Member] = Depends(get_current_member_optional)
+):
+    """Get all gallery images for an event"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    images = db.query(EventGalleryImage).filter(
+        EventGalleryImage.event_id == event_id,
+        EventGalleryImage.is_active == True
+    ).order_by(EventGalleryImage.display_order, EventGalleryImage.created_at.desc()).all()
+
+    # Check which images the user has liked
+    user_liked_ids = set()
+    if current_member:
+        user_likes = db.query(EventGalleryImageLike.image_id).filter(
+            EventGalleryImageLike.member_id == current_member.id,
+            EventGalleryImageLike.image_id.in_([img.id for img in images])
+        ).all()
+        user_liked_ids = {like.image_id for like in user_likes}
+    elif anonymous_id:
+        user_likes = db.query(EventGalleryImageLike.image_id).filter(
+            EventGalleryImageLike.anonymous_id == anonymous_id,
+            EventGalleryImageLike.image_id.in_([img.id for img in images])
+        ).all()
+        user_liked_ids = {like.image_id for like in user_likes}
+
+    # Build response with user_liked info
+    result = []
+    for img in images:
+        img_response = EventGalleryImageResponse(
+            id=img.id,
+            event_id=img.event_id,
+            image_url=img.image_url,
+            caption=img.caption,
+            caption_cn=img.caption_cn,
+            display_order=img.display_order,
+            is_active=img.is_active,
+            uploaded_by_id=img.uploaded_by_id,
+            uploaded_by_name=img.uploaded_by_name,
+            like_count=img.like_count,
+            user_liked=img.id in user_liked_ids,
+            created_at=img.created_at,
+            updated_at=img.updated_at
+        )
+        result.append(img_response)
+
+    return result
+
+
+@app.get("/api/events/{event_id}/gallery/preview", response_model=EventGalleryPreviewResponse)
+def get_event_gallery_preview(
+    event_id: int,
+    limit: int = 5,
+    anonymous_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_member: Optional[Member] = Depends(get_current_member_optional)
+):
+    """Get first N gallery images for card preview with total count"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # Get total count
+    total_count = db.query(EventGalleryImage).filter(
+        EventGalleryImage.event_id == event_id,
+        EventGalleryImage.is_active == True
+    ).count()
+
+    # Get preview images
+    images = db.query(EventGalleryImage).filter(
+        EventGalleryImage.event_id == event_id,
+        EventGalleryImage.is_active == True
+    ).order_by(EventGalleryImage.display_order, EventGalleryImage.created_at.desc()).limit(limit).all()
+
+    # Check which images the user has liked
+    user_liked_ids = set()
+    if images:
+        if current_member:
+            user_likes = db.query(EventGalleryImageLike.image_id).filter(
+                EventGalleryImageLike.member_id == current_member.id,
+                EventGalleryImageLike.image_id.in_([img.id for img in images])
+            ).all()
+            user_liked_ids = {like.image_id for like in user_likes}
+        elif anonymous_id:
+            user_likes = db.query(EventGalleryImageLike.image_id).filter(
+                EventGalleryImageLike.anonymous_id == anonymous_id,
+                EventGalleryImageLike.image_id.in_([img.id for img in images])
+            ).all()
+            user_liked_ids = {like.image_id for like in user_likes}
+
+    # Build response
+    image_responses = [
+        EventGalleryImageResponse(
+            id=img.id,
+            event_id=img.event_id,
+            image_url=img.image_url,
+            caption=img.caption,
+            caption_cn=img.caption_cn,
+            display_order=img.display_order,
+            is_active=img.is_active,
+            uploaded_by_id=img.uploaded_by_id,
+            uploaded_by_name=img.uploaded_by_name,
+            like_count=img.like_count,
+            user_liked=img.id in user_liked_ids,
+            created_at=img.created_at,
+            updated_at=img.updated_at
+        )
+        for img in images
+    ]
+
+    return EventGalleryPreviewResponse(
+        images=image_responses,
+        total_count=total_count,
+        has_more=total_count > limit
+    )
+
+
+@app.post("/api/events/gallery/batch-preview", response_model=BatchGalleryPreviewResponse)
+def get_batch_gallery_preview(
+    request: BatchGalleryPreviewRequest,
+    db: Session = Depends(get_db),
+    current_member: Optional[Member] = Depends(get_current_member_optional)
+):
+    """Get gallery previews for multiple events in a single request"""
+    previews = {}
+
+    for event_id in request.event_ids:
+        # Get total count
+        total_count = db.query(EventGalleryImage).filter(
+            EventGalleryImage.event_id == event_id,
+            EventGalleryImage.is_active == True
+        ).count()
+
+        # Get preview images (limit 5)
+        images = db.query(EventGalleryImage).filter(
+            EventGalleryImage.event_id == event_id,
+            EventGalleryImage.is_active == True
+        ).order_by(EventGalleryImage.display_order, EventGalleryImage.created_at.desc()).limit(5).all()
+
+        # Check which images the user has liked
+        user_liked_ids = set()
+        if images:
+            if current_member:
+                user_likes = db.query(EventGalleryImageLike.image_id).filter(
+                    EventGalleryImageLike.member_id == current_member.id,
+                    EventGalleryImageLike.image_id.in_([img.id for img in images])
+                ).all()
+                user_liked_ids = {like.image_id for like in user_likes}
+            elif request.anonymous_id:
+                user_likes = db.query(EventGalleryImageLike.image_id).filter(
+                    EventGalleryImageLike.anonymous_id == request.anonymous_id,
+                    EventGalleryImageLike.image_id.in_([img.id for img in images])
+                ).all()
+                user_liked_ids = {like.image_id for like in user_likes}
+
+        # Build response for this event
+        image_responses = [
+            EventGalleryImageResponse(
+                id=img.id,
+                event_id=img.event_id,
+                image_url=img.image_url,
+                caption=img.caption,
+                caption_cn=img.caption_cn,
+                display_order=img.display_order,
+                is_active=img.is_active,
+                uploaded_by_id=img.uploaded_by_id,
+                uploaded_by_name=img.uploaded_by_name,
+                like_count=img.like_count,
+                user_liked=img.id in user_liked_ids,
+                created_at=img.created_at,
+                updated_at=img.updated_at
+            )
+            for img in images
+        ]
+
+        previews[event_id] = EventGalleryPreviewResponse(
+            images=image_responses,
+            total_count=total_count,
+            has_more=total_count > 5
+        )
+
+    return BatchGalleryPreviewResponse(previews=previews)
+
+
+@app.post("/api/events/{event_id}/gallery", response_model=EventGalleryImageResponse)
+def upload_gallery_image(
+    event_id: int,
+    image_data: EventGalleryImageCreate,
+    db: Session = Depends(get_db),
+    current_member: Member = Depends(get_current_member_optional)
+):
+    """Upload a new image to event gallery (authenticated users only)"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # Get next display order
+    max_order = db.query(func.max(EventGalleryImage.display_order)).filter(
+        EventGalleryImage.event_id == event_id
+    ).scalar() or 0
+
+    new_image = EventGalleryImage(
+        event_id=event_id,
+        image_url=image_data.image_url,
+        caption=image_data.caption,
+        caption_cn=image_data.caption_cn,
+        display_order=image_data.display_order if image_data.display_order else max_order + 1,
+        uploaded_by_id=current_member.id if current_member else None,
+        uploaded_by_name=current_member.display_name or current_member.username if current_member else "Anonymous"
+    )
+
+    db.add(new_image)
+    db.commit()
+    db.refresh(new_image)
+
+    return EventGalleryImageResponse(
+        id=new_image.id,
+        event_id=new_image.event_id,
+        image_url=new_image.image_url,
+        caption=new_image.caption,
+        caption_cn=new_image.caption_cn,
+        display_order=new_image.display_order,
+        is_active=new_image.is_active,
+        uploaded_by_id=new_image.uploaded_by_id,
+        uploaded_by_name=new_image.uploaded_by_name,
+        like_count=new_image.like_count,
+        user_liked=False,
+        created_at=new_image.created_at,
+        updated_at=new_image.updated_at
+    )
+
+
+@app.put("/api/gallery/{image_id}", response_model=EventGalleryImageResponse)
+def update_gallery_image(
+    image_id: int,
+    image_update: EventGalleryImageUpdate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Update a gallery image (admin only)"""
+    image = db.query(EventGalleryImage).filter(EventGalleryImage.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+
+    update_data = image_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(image, field, value)
+
+    db.commit()
+    db.refresh(image)
+
+    return EventGalleryImageResponse(
+        id=image.id,
+        event_id=image.event_id,
+        image_url=image.image_url,
+        caption=image.caption,
+        caption_cn=image.caption_cn,
+        display_order=image.display_order,
+        is_active=image.is_active,
+        uploaded_by_id=image.uploaded_by_id,
+        uploaded_by_name=image.uploaded_by_name,
+        like_count=image.like_count,
+        user_liked=False,
+        created_at=image.created_at,
+        updated_at=image.updated_at
+    )
+
+
+@app.delete("/api/gallery/{image_id}")
+def delete_gallery_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    x_firebase_uid: Optional[str] = Header(None, alias="X-Firebase-UID")
+):
+    """Delete a gallery image (uploader or admin only)"""
+    if not x_firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+
+    # Get the image
+    image = db.query(EventGalleryImage).filter(EventGalleryImage.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+
+    # Get the member
+    member = db.query(Member).filter(Member.firebase_uid == x_firebase_uid).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Member not found"
+        )
+
+    # Check permission: admin/committee OR uploader
+    is_admin = member.status in ['admin', 'committee']
+    is_uploader = image.uploaded_by_id == member.id
+
+    if not (is_admin or is_uploader):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied. Only the uploader or admins can delete this image."
+        )
+
+    db.delete(image)
+    db.commit()
+    return {"message": f"Gallery image {image_id} deleted successfully"}
+
+
+@app.post("/api/gallery/{image_id}/likes", response_model=EventGalleryImageLikeResponse)
+def toggle_gallery_image_like(
+    image_id: int,
+    anonymous_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_member: Optional[Member] = Depends(get_current_member_optional)
+):
+    """Toggle like on a gallery image"""
+    image = db.query(EventGalleryImage).filter(EventGalleryImage.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+
+    # Check for existing like
+    existing_like = None
+    if current_member:
+        existing_like = db.query(EventGalleryImageLike).filter(
+            EventGalleryImageLike.image_id == image_id,
+            EventGalleryImageLike.member_id == current_member.id
+        ).first()
+    elif anonymous_id:
+        existing_like = db.query(EventGalleryImageLike).filter(
+            EventGalleryImageLike.image_id == image_id,
+            EventGalleryImageLike.anonymous_id == anonymous_id
+        ).first()
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Anonymous ID required for non-logged-in users"
+        )
+
+    if existing_like:
+        # Unlike
+        db.delete(existing_like)
+        image.like_count = max(0, image.like_count - 1)
+        user_liked = False
+    else:
+        # Like
+        new_like = EventGalleryImageLike(
+            image_id=image_id,
+            member_id=current_member.id if current_member else None,
+            firebase_uid=current_member.firebase_uid if current_member else None,
+            anonymous_id=anonymous_id if not current_member else None
+        )
+        db.add(new_like)
+        image.like_count += 1
+        user_liked = True
+
+    db.commit()
+    db.refresh(image)
+
+    return EventGalleryImageLikeResponse(
+        image_id=image_id,
+        like_count=image.like_count,
+        user_liked=user_liked
+    )
+
+
+# EVENT RECURRENCE ENDPOINTS
+
+@app.get("/api/events/{event_id}/recurrence", response_model=EventRecurrenceRuleResponse)
+def get_event_recurrence(
+    event_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get recurrence rule for an event"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    rule = db.query(EventRecurrenceRule).filter(
+        EventRecurrenceRule.event_id == event_id
+    ).first()
+    if not rule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No recurrence rule found for this event")
+
+    return rule
+
+
+@app.post("/api/events/{event_id}/recurrence", response_model=EventRecurrenceRuleResponse)
+def create_event_recurrence(
+    event_id: int,
+    rule_data: EventRecurrenceRuleCreate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Create a recurrence rule for an event (admin only)"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # Check if rule already exists
+    existing_rule = db.query(EventRecurrenceRule).filter(
+        EventRecurrenceRule.event_id == event_id
+    ).first()
+    if existing_rule:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Recurrence rule already exists for this event. Use PUT to update."
+        )
+
+    # Create rule
+    rule = EventRecurrenceRule(
+        event_id=event_id,
+        recurrence_type=rule_data.recurrence_type.value,
+        days_of_week=rule_data.days_of_week,
+        day_of_month=rule_data.day_of_month,
+        week_of_month=rule_data.week_of_month,
+        month_of_year=rule_data.month_of_year,
+        custom_rule=rule_data.custom_rule,
+        end_date=rule_data.end_date,
+        max_occurrences=rule_data.max_occurrences
+    )
+
+    # Update event to be recurring
+    event.is_recurring = True
+
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+
+    return rule
+
+
+@app.put("/api/events/{event_id}/recurrence", response_model=EventRecurrenceRuleResponse)
+def update_event_recurrence(
+    event_id: int,
+    rule_update: EventRecurrenceRuleUpdate,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Update recurrence rule for an event (admin only)"""
+    rule = db.query(EventRecurrenceRule).filter(
+        EventRecurrenceRule.event_id == event_id
+    ).first()
+    if not rule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No recurrence rule found for this event")
+
+    update_data = rule_update.model_dump(exclude_unset=True)
+
+    # Convert enum to string if present
+    if 'recurrence_type' in update_data and update_data['recurrence_type']:
+        update_data['recurrence_type'] = update_data['recurrence_type'].value
+
+    for field, value in update_data.items():
+        setattr(rule, field, value)
+
+    db.commit()
+    db.refresh(rule)
+
+    return rule
+
+
+@app.delete("/api/events/{event_id}/recurrence")
+def delete_event_recurrence(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Delete recurrence rule for an event (stops future occurrences, admin only)"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    rule = db.query(EventRecurrenceRule).filter(
+        EventRecurrenceRule.event_id == event_id
+    ).first()
+    if not rule:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No recurrence rule found for this event")
+
+    # Update event
+    event.is_recurring = False
+
+    db.delete(rule)
+    db.commit()
+
+    return {"message": "Recurrence rule deleted. No new occurrences will be generated."}
+
+
+@app.post("/api/events/{event_id}/recurrence/generate")
+def manually_generate_recurrence(
+    event_id: int,
+    count: int = 1,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Manually generate recurring event instances (admin only)"""
+    from datetime import date, timedelta
+    import json
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    rule = db.query(EventRecurrenceRule).filter(
+        EventRecurrenceRule.event_id == event_id,
+        EventRecurrenceRule.is_active == True
+    ).first()
+    if not rule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active recurrence rule found for this event"
+        )
+
+    # Check if max occurrences reached
+    if rule.max_occurrences and rule.occurrences_created >= rule.max_occurrences:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum occurrences ({rule.max_occurrences}) already reached"
+        )
+
+    generated_events = []
+    base_date = rule.last_generated_date or event.date
+    current_date = base_date
+
+    for i in range(count):
+        # Calculate next occurrence based on recurrence type
+        if rule.recurrence_type == 'weekly':
+            current_date = current_date + timedelta(weeks=1)
+        elif rule.recurrence_type == 'biweekly':
+            current_date = current_date + timedelta(weeks=2)
+        elif rule.recurrence_type == 'monthly':
+            # Simple monthly: add one month
+            if rule.day_of_month:
+                month = current_date.month + 1
+                year = current_date.year
+                if month > 12:
+                    month = 1
+                    year += 1
+                day = min(rule.day_of_month, 28)  # Safe for all months
+                current_date = date(year, month, day)
+            else:
+                current_date = current_date + timedelta(days=30)
+        elif rule.recurrence_type == 'yearly':
+            current_date = date(current_date.year + 1, current_date.month, current_date.day)
+        else:
+            # Custom: try to parse custom_rule JSON
+            if rule.custom_rule:
+                try:
+                    custom = json.loads(rule.custom_rule)
+                    interval_days = custom.get('interval_days', 7)
+                    current_date = current_date + timedelta(days=interval_days)
+                except:
+                    current_date = current_date + timedelta(weeks=1)
+            else:
+                current_date = current_date + timedelta(weeks=1)
+
+        # Check if past end date
+        if rule.end_date and current_date > rule.end_date:
+            break
+
+        # Check if max occurrences reached
+        if rule.max_occurrences and rule.occurrences_created + len(generated_events) + 1 > rule.max_occurrences:
+            break
+
+        # Create new event instance
+        new_event = Event(
+            name=event.name,
+            chinese_name=event.chinese_name,
+            date=current_date,
+            time=event.time,
+            location=event.location,
+            chinese_location=event.chinese_location,
+            description=event.description,
+            chinese_description=event.chinese_description,
+            image=event.image,
+            signup_link=event.signup_link,
+            status='Upcoming',
+            event_type=event.event_type,
+            heylo_embed=event.heylo_embed,
+            is_recurring=False,  # Instance is not itself recurring
+            parent_event_id=event_id
+        )
+
+        db.add(new_event)
+        generated_events.append({
+            "date": str(current_date),
+            "name": event.name
+        })
+
+    # Update rule tracking
+    if generated_events:
+        rule.last_generated_date = current_date
+        rule.occurrences_created += len(generated_events)
+
+    db.commit()
+
+    return {
+        "message": f"Generated {len(generated_events)} recurring event instances",
+        "events": generated_events
+    }
+
+
+@app.get("/api/events/{event_id}/with-recurrence", response_model=EventWithRecurrence)
+def get_event_with_recurrence(
+    event_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get event with its recurrence rule (if any)"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # Get recurrence rule if exists
+    rule = db.query(EventRecurrenceRule).filter(
+        EventRecurrenceRule.event_id == event_id
+    ).first()
+
+    return EventWithRecurrence(
+        id=event.id,
+        name=event.name,
+        chinese_name=event.chinese_name,
+        date=event.date,
+        time=event.time,
+        location=event.location,
+        chinese_location=event.chinese_location,
+        description=event.description,
+        chinese_description=event.chinese_description,
+        image=event.image,
+        signup_link=event.signup_link,
+        status=event.status,
+        event_type=event.event_type or 'standard',
+        heylo_embed=event.heylo_embed,
+        is_recurring=event.is_recurring or False,
+        parent_event_id=event.parent_event_id,
+        next_occurrence_date=event.next_occurrence_date,
+        recurrence=rule,
+        created_at=event.created_at,
+        updated_at=event.updated_at
+    )
+
+
+@app.get("/api/events/{event_id}/series", response_model=List[EventResponse])
+def get_event_series(
+    event_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get all events in a recurring series."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # Determine parent ID
+    if event.is_recurring and event.parent_event_id is None:
+        # This is the parent event
+        parent_id = event.id
+    elif event.parent_event_id:
+        # This is a child event
+        parent_id = event.parent_event_id
+    else:
+        # Not recurring, return just this event
+        return [event]
+
+    # Get parent and all children
+    parent = db.query(Event).filter(Event.id == parent_id).first()
+    children = db.query(Event).filter(Event.parent_event_id == parent_id).all()
+
+    # Combine parent (if it has a date) and children
+    from datetime import date as date_type
+    series = ([parent] if parent and parent.date else []) + children
+    series.sort(key=lambda e: e.date or date_type.min, reverse=True)
+    return series
+
+
+@app.post("/api/events/{event_id}/add-to-series/{parent_id}")
+def add_event_to_series(
+    event_id: int,
+    parent_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Add an existing event to a recurring series (admin only)."""
+    # Get the event to be added
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # Get the parent event
+    parent = db.query(Event).filter(Event.id == parent_id).first()
+    if not parent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent event not found")
+
+    # Verify parent is a recurring event
+    if not parent.is_recurring:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target event is not a recurring series"
+        )
+
+    # Prevent adding the parent to itself
+    if event_id == parent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot add an event to itself"
+        )
+
+    # Update the event
+    event.parent_event_id = parent_id
+    event.is_recurring = False  # Child events are not recurring themselves
+    db.commit()
+
+    return {"message": f"Event {event_id} added to series {parent_id}"}
+
+
+@app.post("/api/events/{event_id}/toggle-series-parent")
+def toggle_series_parent(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Toggle an event as a series parent (admin only)."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    if event.parent_event_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot mark a child event as a series parent"
+        )
+
+    event.is_recurring = not event.is_recurring
+    db.commit()
+
+    return {"message": f"Event {'marked' if event.is_recurring else 'unmarked'} as series parent",
+            "is_recurring": event.is_recurring}
+
+
+@app.post("/api/events/{event_id}/dissolve-series")
+def dissolve_series(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Dissolve a series - unlink all children (admin only)."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event or not event.is_recurring:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Not a series parent")
+
+    children = db.query(Event).filter(Event.parent_event_id == event_id).all()
+    for child in children:
+        child.parent_event_id = None
+    event.is_recurring = False
+    db.commit()
+
+    return {"message": f"Series dissolved. {len(children)} events unlinked."}
+
+
+@app.post("/api/events/{event_id}/remove-from-series")
+def remove_event_from_series(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Member = Depends(get_current_admin)
+):
+    """Remove an event from its series (admin only)."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event or not event.parent_event_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Event not in a series")
+
+    event.parent_event_id = None
+    db.commit()
+    return {"message": "Event removed from series"}
 
 
 if __name__ == "__main__":

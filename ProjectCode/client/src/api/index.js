@@ -20,7 +20,12 @@ export {
   getEventById,
   createEvent,
   updateEvent,
-  deleteEvent
+  deleteEvent,
+  getEventSeries,
+  addEventToSeries,
+  toggleSeriesParent,
+  dissolveSeries,
+  removeEventFromSeries
 } from './events';
 export {
   getAllMeetingMinutes,
@@ -50,3 +55,16 @@ export {
   getEventSettings,
   updateEventSettings
 } from './engagement';
+export {
+  getEventGallery,
+  getEventGalleryPreview,
+  getBatchGalleryPreview,
+  uploadGalleryImage,
+  updateGalleryImage,
+  deleteGalleryImage,
+  toggleGalleryImageLike,
+  fileToBase64,
+  compressImage,
+  downloadImage,
+  shareImage
+} from './gallery';
