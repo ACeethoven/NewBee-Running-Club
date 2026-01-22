@@ -28,6 +28,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   TextField,
   Tooltip,
   Typography
@@ -66,6 +67,10 @@ const ProfilePage = () => {
   // Race results state
   const [raceData, setRaceData] = useState({ results: [], stats: { total_races: 0, prs: {}, recent_results: [] } });
   const [loadingRaces, setLoadingRaces] = useState(false);
+
+  // Race history sorting state
+  const [sortColumn, setSortColumn] = useState('race_date');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   // Photo upload state
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -280,6 +285,58 @@ const ProfilePage = () => {
       setSaving(false);
     }
   };
+
+  // Handle sorting for race history table
+  const handleSortClick = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort race results
+  const sortedResults = [...(raceData.results || [])].sort((a, b) => {
+    let aVal, bVal;
+
+    switch (sortColumn) {
+      case 'race_date':
+        aVal = a.race_date || '';
+        bVal = b.race_date || '';
+        break;
+      case 'race':
+        aVal = (a.race || '').toLowerCase();
+        bVal = (b.race || '').toLowerCase();
+        break;
+      case 'distance':
+        // Extract numeric part for distance sorting (e.g., "10 Mile" -> 10)
+        aVal = parseFloat(a.distance) || 0;
+        bVal = parseFloat(b.distance) || 0;
+        break;
+      case 'overall_time':
+        // Time format is "H:MM:SS" - convert to seconds for comparison
+        aVal = a.overall_time ? a.overall_time.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        bVal = b.overall_time ? b.overall_time.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        break;
+      case 'pace':
+        // Pace format is "MM:SS" - convert to seconds
+        aVal = a.pace ? a.pace.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        bVal = b.pace ? b.pace.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        break;
+      case 'overall_place':
+        aVal = a.overall_place || 999999;
+        bVal = b.overall_place || 999999;
+        break;
+      default:
+        aVal = a[sortColumn] || '';
+        bVal = b[sortColumn] || '';
+    }
+
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   if (!currentUser) return null;
 
@@ -624,16 +681,64 @@ const ProfilePage = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Date / 日期</TableCell>
-                  <TableCell>Race / 比赛</TableCell>
-                  <TableCell>Distance / 距离</TableCell>
-                  <TableCell>Time / 成绩</TableCell>
-                  <TableCell>Pace / 配速</TableCell>
-                  <TableCell>Place / 名次</TableCell>
+                  <TableCell sortDirection={sortColumn === 'race_date' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'race_date'}
+                      direction={sortColumn === 'race_date' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('race_date')}
+                    >
+                      Date / 日期
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'race' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'race'}
+                      direction={sortColumn === 'race' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('race')}
+                    >
+                      Race / 比赛
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'distance' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'distance'}
+                      direction={sortColumn === 'distance' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('distance')}
+                    >
+                      Distance / 距离
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'overall_time' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'overall_time'}
+                      direction={sortColumn === 'overall_time' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('overall_time')}
+                    >
+                      Time / 成绩
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'pace' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'pace'}
+                      direction={sortColumn === 'pace' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('pace')}
+                    >
+                      Pace / 配速
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'overall_place' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'overall_place'}
+                      direction={sortColumn === 'overall_place' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('overall_place')}
+                    >
+                      Place / 名次
+                    </TableSortLabel>
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {raceData.results.map((result) => (
+                {sortedResults.map((result) => (
                   <TableRow key={result.id} hover>
                     <TableCell>{result.race_date}</TableCell>
                     <TableCell>{result.race}</TableCell>
