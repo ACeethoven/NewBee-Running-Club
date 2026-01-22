@@ -286,6 +286,52 @@ const ProfilePage = () => {
     }
   };
 
+  // Convert distance string to meters for sorting
+  const distanceToMeters = (distance) => {
+    if (!distance) return 0;
+    const d = distance.toLowerCase().trim();
+
+    // Common race distances mapping to meters
+    const distanceMap = {
+      'marathon': 42195,
+      'half marathon': 21097.5,
+      'half': 21097.5,
+      '5k': 5000,
+      '10k': 10000,
+      '15k': 15000,
+      '20k': 20000,
+      '25k': 25000,
+      '30k': 30000,
+    };
+
+    // Check exact matches first
+    for (const [key, meters] of Object.entries(distanceMap)) {
+      if (d === key || d.includes(key)) return meters;
+    }
+
+    // Handle "X Mile" or "X Miles" format
+    const mileMatch = d.match(/(\d+\.?\d*)\s*mile/i);
+    if (mileMatch) {
+      return parseFloat(mileMatch[1]) * 1609.34;
+    }
+
+    // Handle "X K" or "X km" format
+    const kmMatch = d.match(/(\d+\.?\d*)\s*k(?:m)?(?:\s|$)/i);
+    if (kmMatch) {
+      return parseFloat(kmMatch[1]) * 1000;
+    }
+
+    // Handle "X M" or "X meter" format
+    const meterMatch = d.match(/(\d+\.?\d*)\s*m(?:eter)?(?:s)?(?:\s|$)/i);
+    if (meterMatch) {
+      return parseFloat(meterMatch[1]);
+    }
+
+    // Fallback: try to parse any number
+    const num = parseFloat(d);
+    return isNaN(num) ? 0 : num;
+  };
+
   // Handle sorting for race history table
   const handleSortClick = (column) => {
     if (sortColumn === column) {
@@ -310,9 +356,9 @@ const ProfilePage = () => {
         bVal = (b.race || '').toLowerCase();
         break;
       case 'distance':
-        // Extract numeric part for distance sorting (e.g., "10 Mile" -> 10)
-        aVal = parseFloat(a.distance) || 0;
-        bVal = parseFloat(b.distance) || 0;
+        // Convert distance to meters for accurate sorting
+        aVal = distanceToMeters(a.distance);
+        bVal = distanceToMeters(b.distance);
         break;
       case 'overall_time':
         // Time format is "H:MM:SS" - convert to seconds for comparison
