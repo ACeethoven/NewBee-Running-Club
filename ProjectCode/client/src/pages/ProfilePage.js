@@ -287,44 +287,45 @@ const ProfilePage = () => {
   };
 
   // Convert distance string to meters for sorting
+  // Database uses: "5K", "10K", "15K", "1M", "4M", "5M", "10M", "12M", "Half Marathon", "Marathon"
+  // Note: "M" means Mile (not meters) in this dataset
   const distanceToMeters = (distance) => {
     if (!distance) return 0;
-    const d = distance.toLowerCase().trim();
+    const d = distance.trim();
+    const dLower = d.toLowerCase();
 
     // Check specific patterns in order (more specific first!)
     // Half marathon must be checked BEFORE marathon
-    if (d.includes('half marathon') || d === 'half') return 21097.5;
-    if (d === 'marathon' || (d.includes('marathon') && !d.includes('half'))) return 42195;
+    if (dLower.includes('half marathon') || dLower === 'half') return 21097.5;
+    if (dLower === 'marathon' || (dLower.includes('marathon') && !dLower.includes('half'))) return 42195;
+
+    // Handle "XM" format where M = Mile (e.g., "10M", "5M", "4M")
+    const mileShortMatch = d.match(/^(\d+\.?\d*)M$/);
+    if (mileShortMatch) {
+      return parseFloat(mileShortMatch[1]) * 1609.34;
+    }
 
     // Handle "X Mile" or "X Miles" format
-    const mileMatch = d.match(/(\d+\.?\d*)\s*mile/i);
+    const mileMatch = dLower.match(/(\d+\.?\d*)\s*mile/i);
     if (mileMatch) {
       return parseFloat(mileMatch[1]) * 1609.34;
     }
 
-    // Handle K distances: 5K, 10K, etc.
-    if (d.includes('5k')) return 5000;
-    if (d.includes('10k')) return 10000;
-    if (d.includes('15k')) return 15000;
-    if (d.includes('20k')) return 20000;
-    if (d.includes('25k')) return 25000;
-    if (d.includes('30k')) return 30000;
+    // Handle "XK" format (e.g., "5K", "10K", "15K")
+    const kMatch = d.match(/^(\d+\.?\d*)K$/i);
+    if (kMatch) {
+      return parseFloat(kMatch[1]) * 1000;
+    }
 
-    // Handle "X K" or "X km" format
-    const kmMatch = d.match(/(\d+\.?\d*)\s*k(?:m)?(?:\s|$)/i);
+    // Handle "X km" format
+    const kmMatch = dLower.match(/(\d+\.?\d*)\s*km/i);
     if (kmMatch) {
       return parseFloat(kmMatch[1]) * 1000;
     }
 
-    // Handle "X M" or "X meter" format (but not "X Mile")
-    const meterMatch = d.match(/(\d+\.?\d*)\s*m(?:eter)?(?:s)?(?:\s|$)/i);
-    if (meterMatch && !d.includes('mile') && !d.includes('marathon')) {
-      return parseFloat(meterMatch[1]);
-    }
-
-    // Fallback: try to parse any number
+    // Fallback: try to parse any number (assume km if no unit)
     const num = parseFloat(d);
-    return isNaN(num) ? 0 : num;
+    return isNaN(num) ? 0 : num * 1000;
   };
 
   // Handle sorting for race history table
