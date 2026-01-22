@@ -14,9 +14,13 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
   Grid,
   IconButton,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Skeleton,
   Table,
   TableBody,
@@ -24,6 +28,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   TextField,
   Tooltip,
   Typography
@@ -62,6 +67,10 @@ const ProfilePage = () => {
   // Race results state
   const [raceData, setRaceData] = useState({ results: [], stats: { total_races: 0, prs: {}, recent_results: [] } });
   const [loadingRaces, setLoadingRaces] = useState(false);
+
+  // Race history sorting state
+  const [sortColumn, setSortColumn] = useState('race_date');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   // Photo upload state
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -125,7 +134,11 @@ const ProfilePage = () => {
         setLoadingRaces(true);
         try {
           const searchKey = response.nyrr_member_id || response.display_name;
-          const raceResponse = await getMemberRaceResults(searchKey);
+          // Pass gender and birth_year for more accurate matching
+          const options = {};
+          if (response.gender) options.gender = response.gender;
+          if (response.birth_year) options.birth_year = response.birth_year;
+          const raceResponse = await getMemberRaceResults(searchKey, options);
           setRaceData(raceResponse);
         } catch (raceErr) {
           console.error('Failed to fetch race results:', raceErr);
@@ -225,6 +238,8 @@ const ProfilePage = () => {
       display_name_cn: memberData?.display_name_cn || '',
       email: memberData?.email || currentUser?.email || '',
       phone: memberData?.phone || '',
+      gender: memberData?.gender || '',
+      birth_year: memberData?.birth_year || '',
       nyrr_member_id: memberData?.nyrr_member_id || '',
       emergency_contact_name: memberData?.emergency_contact_name || '',
       emergency_contact_phone: memberData?.emergency_contact_phone || '',
@@ -270,6 +285,100 @@ const ProfilePage = () => {
       setSaving(false);
     }
   };
+
+  // Convert distance string to meters for sorting
+  // Database uses: "5K", "10K", "15K", "1M", "4M", "5M", "10M", "12M", "Half Marathon", "Marathon"
+  // Note: "M" means Mile (not meters) in this dataset
+  const distanceToMeters = (distance) => {
+    if (!distance) return 0;
+    const d = distance.trim();
+    const dLower = d.toLowerCase();
+
+    // Check specific patterns in order (more specific first!)
+    // Half marathon must be checked BEFORE marathon
+    if (dLower.includes('half marathon') || dLower === 'half') return 21097.5;
+    if (dLower === 'marathon' || (dLower.includes('marathon') && !dLower.includes('half'))) return 42195;
+
+    // Handle "XM" format where M = Mile (e.g., "10M", "5M", "4M")
+    const mileShortMatch = d.match(/^(\d+\.?\d*)M$/);
+    if (mileShortMatch) {
+      return parseFloat(mileShortMatch[1]) * 1609.34;
+    }
+
+    // Handle "X Mile" or "X Miles" format
+    const mileMatch = dLower.match(/(\d+\.?\d*)\s*mile/i);
+    if (mileMatch) {
+      return parseFloat(mileMatch[1]) * 1609.34;
+    }
+
+    // Handle "XK" format (e.g., "5K", "10K", "15K")
+    const kMatch = d.match(/^(\d+\.?\d*)K$/i);
+    if (kMatch) {
+      return parseFloat(kMatch[1]) * 1000;
+    }
+
+    // Handle "X km" format
+    const kmMatch = dLower.match(/(\d+\.?\d*)\s*km/i);
+    if (kmMatch) {
+      return parseFloat(kmMatch[1]) * 1000;
+    }
+
+    // Fallback: try to parse any number (assume km if no unit)
+    const num = parseFloat(d);
+    return isNaN(num) ? 0 : num * 1000;
+  };
+
+  // Handle sorting for race history table
+  const handleSortClick = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort race results
+  const sortedResults = [...(raceData.results || [])].sort((a, b) => {
+    let aVal, bVal;
+
+    switch (sortColumn) {
+      case 'race_date':
+        aVal = a.race_date || '';
+        bVal = b.race_date || '';
+        break;
+      case 'race':
+        aVal = (a.race || '').toLowerCase();
+        bVal = (b.race || '').toLowerCase();
+        break;
+      case 'distance':
+        // Convert distance to meters for accurate sorting
+        aVal = distanceToMeters(a.distance);
+        bVal = distanceToMeters(b.distance);
+        break;
+      case 'overall_time':
+        // Time format is "H:MM:SS" - convert to seconds for comparison
+        aVal = a.overall_time ? a.overall_time.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        bVal = b.overall_time ? b.overall_time.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        break;
+      case 'pace':
+        // Pace format is "MM:SS" - convert to seconds
+        aVal = a.pace ? a.pace.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        bVal = b.pace ? b.pace.split(':').reduce((acc, t) => acc * 60 + parseInt(t), 0) : 999999;
+        break;
+      case 'overall_place':
+        aVal = a.overall_place || 999999;
+        bVal = b.overall_place || 999999;
+        break;
+      default:
+        aVal = a[sortColumn] || '';
+        bVal = b[sortColumn] || '';
+    }
+
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   if (!currentUser) return null;
 
@@ -424,6 +533,17 @@ const ProfilePage = () => {
                 <Typography variant="body1">{memberData.nyrr_member_id || '-'}</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Gender / 性别</Typography>
+                <Typography variant="body1">
+                  {memberData.gender === 'M' ? 'Male / 男' :
+                   memberData.gender === 'F' ? 'Female / 女' : '-'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="caption" color="text.secondary">Birth Year / 出生年份</Typography>
+                <Typography variant="body1">{memberData.birth_year || '-'}</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
                 <Typography variant="caption" color="text.secondary">Join Date / 加入日期</Typography>
                 <Typography variant="body1">{memberData.join_date || '-'}</Typography>
               </Grid>
@@ -532,7 +652,7 @@ const ProfilePage = () => {
                 {loadingRaces ? <CircularProgress size={24} /> : Object.keys(raceData.stats.prs).length}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Personal Records / 个人记录
+                NYRR Personal Records / 纽约路跑协会个人最佳
               </Typography>
             </CardContent>
           </Card>
@@ -556,7 +676,7 @@ const ProfilePage = () => {
       {Object.keys(raceData.stats.prs).length > 0 && (
         <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
           <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TrophyIcon color="warning" /> Personal Records / 个人最佳成绩
+            <TrophyIcon color="warning" /> NYRR Personal Records / 纽约路跑协会比赛个人最佳
           </Typography>
           <Grid container spacing={2}>
             {Object.entries(raceData.stats.prs).map(([distance, pr]) => (
@@ -603,16 +723,64 @@ const ProfilePage = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Date / 日期</TableCell>
-                  <TableCell>Race / 比赛</TableCell>
-                  <TableCell>Distance / 距离</TableCell>
-                  <TableCell>Time / 成绩</TableCell>
-                  <TableCell>Pace / 配速</TableCell>
-                  <TableCell>Place / 名次</TableCell>
+                  <TableCell sortDirection={sortColumn === 'race_date' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'race_date'}
+                      direction={sortColumn === 'race_date' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('race_date')}
+                    >
+                      Date / 日期
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'race' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'race'}
+                      direction={sortColumn === 'race' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('race')}
+                    >
+                      Race / 比赛
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'distance' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'distance'}
+                      direction={sortColumn === 'distance' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('distance')}
+                    >
+                      Distance / 距离
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'overall_time' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'overall_time'}
+                      direction={sortColumn === 'overall_time' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('overall_time')}
+                    >
+                      Time / 成绩
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'pace' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'pace'}
+                      direction={sortColumn === 'pace' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('pace')}
+                    >
+                      Pace / 配速
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={sortColumn === 'overall_place' ? sortDirection : false}>
+                    <TableSortLabel
+                      active={sortColumn === 'overall_place'}
+                      direction={sortColumn === 'overall_place' ? sortDirection : 'asc'}
+                      onClick={() => handleSortClick('overall_place')}
+                    >
+                      Place / 名次
+                    </TableSortLabel>
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {raceData.results.map((result) => (
+                {sortedResults.map((result) => (
                   <TableRow key={result.id} hover>
                     <TableCell>{result.race_date}</TableCell>
                     <TableCell>{result.race}</TableCell>
@@ -713,6 +881,42 @@ const ProfilePage = () => {
                 onKeyDown={handleFieldKeyDown}
                 placeholder={profileDefaultValues.nyrr_member_id}
                 helperText="Your NYRR account ID for race results"
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1, mt: 2 }}>
+                Race Record Matching / 比赛记录匹配
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Gender and birth year are used to accurately match your race results
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Gender / 性别</InputLabel>
+                <Select
+                  value={editFormData.gender || ''}
+                  onChange={handleEditFormChange('gender')}
+                  label="Gender / 性别"
+                >
+                  <MenuItem value="">Not specified</MenuItem>
+                  <MenuItem value="M">Male / 男</MenuItem>
+                  <MenuItem value="F">Female / 女</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Birth Year / 出生年份"
+                value={editFormData.birth_year || ''}
+                onChange={handleEditFormChange('birth_year')}
+                placeholder="e.g., 1990"
+                inputProps={{ min: 1900, max: 2020 }}
+                helperText="Used to calculate age category for race matching"
               />
             </Grid>
 

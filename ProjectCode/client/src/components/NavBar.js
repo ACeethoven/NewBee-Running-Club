@@ -114,7 +114,7 @@ export default function NavBar() {
                     overflow: 'hidden',
                   }}
                 >
-                  <Tooltip title={isFullAdmin ? "Admin Panel / 管理面板" : "Committee Panel / 委员面板"}>
+                  <Tooltip title={isFullAdmin ? "Admin Dashboard / 管理仪表板" : "Committee Dashboard / 委员仪表板"}>
                     <Button
                       component={NavLink}
                       to="/admin"
@@ -145,7 +145,7 @@ export default function NavBar() {
                       >
                         <AdminPanelSettingsIcon sx={{ fontSize: { xs: '1.1rem', sm: '1.2rem' } }} />
                       </Badge>
-                      {!isMobile && <span style={{ marginLeft: '4px' }}>{isFullAdmin ? 'Admin' : 'Committee'}</span>}
+                      {!isMobile && <span style={{ marginLeft: '4px' }}>{isFullAdmin ? 'Admin Dashboard' : 'Committee Dashboard'}</span>}
                     </Button>
                   </Tooltip>
                   <Tooltip title={adminModeEnabled ? "Switch to Runner Mode / 切换跑者模式" : `Switch to ${isFullAdmin ? 'Admin' : 'Committee'} Mode / 切换${isFullAdmin ? '管理员' : '委员'}模式`}>
