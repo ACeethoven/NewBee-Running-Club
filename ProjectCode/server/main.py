@@ -280,19 +280,27 @@ def get_member_race_results(
         Results.name.ilike(search_key)
     ).order_by(Results.race_time.desc()).all()
 
-    # If gender and birth_year provided, filter by calculated gender_age
+    # If gender and birth_year provided, filter by matching gender and calculated birth year
     if gender and birth_year:
         filtered_results = []
         for result in results:
             if result.race_time and result.gender_age:
-                # Calculate expected gender_age at the time of the race
-                race_year = result.race_time.year
-                expected_age = race_year - birth_year
-                expected_gender_age = f"{gender}{expected_age}"
+                # Extract gender and age from result's gender_age (e.g., "M30" -> "M", 30)
+                result_gender = result.gender_age[0] if result.gender_age else None
+                try:
+                    result_age = int(result.gender_age[1:]) if result.gender_age and len(result.gender_age) > 1 else None
+                except ValueError:
+                    result_age = None
 
-                # Match if gender_age matches expected (exact match)
-                if result.gender_age == expected_gender_age:
-                    filtered_results.append(result)
+                if result_gender and result_age:
+                    # Calculate birth year from race year and age
+                    race_year = result.race_time.year
+                    calculated_birth_year = race_year - result_age
+
+                    # Match if gender matches AND calculated birth year is within ±1 year
+                    # (±1 tolerance because age depends on whether birthday passed before race date)
+                    if result_gender == gender and abs(calculated_birth_year - birth_year) <= 1:
+                        filtered_results.append(result)
         results = filtered_results
 
     if not results:
